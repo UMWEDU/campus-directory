@@ -19,6 +19,9 @@ class SAU_Campus_Directory {
 		 * Enable the ability to convert old format to new
 		 */
 		add_action( 'admin_menu', array( $this, 'add_submenu_page' ) );
+		
+		if ( is_admin() )
+			wp_register_script( 'sau-campus-directory-admin', plugins_url( '/js/sau-campus-directory-admin.js', dirname( __FILE__ ) ), array( 'jquery' ), '0.2.10', true );
 	}
 	
 	/**
@@ -189,7 +192,7 @@ class SAU_Campus_Directory {
 			'update_item'   => __( 'Update Department' ),
 			'add_new_item'  => __( 'Add New Department' ),
 			'new_item_name' => __( 'New Department Name' ),
-			'menu_name'     => __( 'Department' ),
+			'menu_name'     => __( 'Departments' ),
 		);
 		/**
 		 * Define the appropriate arguments for the "department" taxonomy
@@ -215,7 +218,7 @@ class SAU_Campus_Directory {
 			'update_item'   => __( 'Update Tag' ),
 			'add_new_item'  => __( 'Add New Tag' ),
 			'new_item_name' => __( 'New Tag Name' ),
-			'menu_name'     => __( 'Tag' ),
+			'menu_name'     => __( 'Tags' ),
 		);
 		/**
 		 * Define the appropriate arguments for the "department" taxonomy
@@ -228,6 +231,7 @@ class SAU_Campus_Directory {
 		register_taxonomy( 'contact-tag', array( 'contact' ), $args );
 		
 		add_action( 'add_meta_boxes', array( $this, 'add_meta_boxes' ) );
+		add_action( 'save_post', array( $this, 'save_post' ) );
 		
 		/**
 		 * Define the various labels for the "department" taxonomy
@@ -243,7 +247,7 @@ class SAU_Campus_Directory {
 			'update_item'   => __( 'Update Building' ),
 			'add_new_item'  => __( 'Add New Building' ),
 			'new_item_name' => __( 'New Building Name' ),
-			'menu_name'     => __( 'Building' ),
+			'menu_name'     => __( 'Buildings' ),
 		);
 		/**
 		 * Define the appropriate arguments for the "department" taxonomy
@@ -252,6 +256,11 @@ class SAU_Campus_Directory {
 			'labels'       => $labels, 
 			'hierarchical' => true, 
 			'public'       => true, 
+			'rewrite'      => array( 
+				'slug'         => 'buildings', 
+				'with_front'   => true, 
+				'hierarchical' => true, 
+			), 
 		);
 		register_taxonomy( 'building', array( 'contact' ), $args );
 		
@@ -269,6 +278,8 @@ class SAU_Campus_Directory {
 	 * Output the meta box for the custom contact fields
 	 */
 	function do_meta_boxes( $post = null ) {
+		wp_enqueue_script( 'sau-campus-directory-admin' );
+		
 		if ( is_numeric( $post ) )
 			$post = get_post( $post );
 		
@@ -277,46 +288,7 @@ class SAU_Campus_Directory {
 			$this->do_meta_field( $field, $post );
 		}
 		
-		$buildings = get_the_terms( $post->ID, 'building' );
-		$offices = maybe_unserialize( get_post_meta( $post->ID, 'office_wpcm_value' ) );
-		
-		if ( empty( $buildings ) || is_wp_error( $buildings ) )
-			$buildings = array();
-		if ( empty( $offices ) || is_wp_error( $offices ) )
-			$offices = array();
-		
-		$buildings[] = new stdClass( array( 'term_id' => 0 ) );
-		$offices[] = '';
-?>
-<fieldset class="offices">
-	<legend><?php _e( 'Office Location(s)' ) ?></legend>
-<?php
-		$i = 0;
-		foreach( $buildings as $k => $v ) {
-?>
-	<fieldset class="office-block" style="border-top: 1px solid #999; padding-top: 1em; margin-top: 1em;">
-		<label for="building_<?php echo $i ?>"><?php _e( 'Building name:' ) ?></label> 
-<?php 
-			wp_dropdown_categories( array(
-				'name'     => 'building[' . $i . ']', 
-				'id'       => 'building_' . $i, 
-				'selected' => $v->term_id, 
-				'show_option_none'  => '-- None --', 
-				'option_none_value' => 0, 
-				'class'    => 'widefat', 
-				'taxonomy' => 'building', 
-			) );
-?>
-		<br />
-		<label for="office_<?php echo $i ?>"><?php _e( 'Office/Room:' ) ?></label> 
-        	<input class="widefat" type="text" name="office_wpcm_value[<?php echo $i ?>]" id="office_<?php echo $i ?>" value="<?php echo $offices[$k] ?>" />
-	</fieldset>
-<?php
-			$i++;
-		}
-?>
-</fieldset>
-<?php
+		$this->build_office_fieldset( $post );
 	}
 	
 	/**
@@ -361,12 +333,67 @@ class SAU_Campus_Directory {
 	}
 	
 	/**
+	 * Output the fieldset for building/office meta data
+	 */
+	function build_office_fieldset( $post = null ) {
+		$buildings = get_the_terms( $post->ID, 'building' );
+		$offices = get_post_meta( $post->ID, 'office_wpcm_value', true );
+		
+		print( "\n<!-- Building list:\n" );
+		var_dump( $buildings );
+		print( "\nOffice list:\n" );
+		var_dump( $offices );
+		print( "\n-->\n" );
+		
+		if ( empty( $buildings ) || is_wp_error( $buildings ) )
+			$buildings = array();
+		if ( empty( $offices ) || is_wp_error( $offices ) )
+			$offices = array();
+		
+		$buildings[] = new stdClass( array( 'term_id' => 0 ) );
+		$offices[] = '';
+?>
+<fieldset class="offices">
+	<legend><?php _e( 'Office Location(s)' ) ?></legend>
+<?php
+		$i = 0;
+		foreach( $buildings as $k => $v ) {
+?>
+	<fieldset class="office-block" style="border: 1px solid #999; padding: 1em; margin: 1em;">
+    	<legend><?php printf( __( 'Office location %d' ), ( $i + 1 ) ) ?></legend>
+		<label for="building_<?php echo $i ?>"><?php _e( 'Building name:' ) ?></label> 
+<?php 
+			wp_dropdown_categories( array(
+				'name'       => 'building[' . $i . ']', 
+				'id'         => 'building_' . $i, 
+				'selected'   => $v->term_id, 
+				'show_option_none'  => '-- None --', 
+				'option_none_value' => 0, 
+				'class'      => 'widefat office-building-field', 
+				'taxonomy'   => 'building', 
+				'orderby'    => 'title', 
+				'hide_empty' => 0, 
+			) );
+?>
+		<br />
+		<label for="office_<?php echo $i ?>"><?php _e( 'Office/Room:' ) ?></label> 
+        	<input class="widefat office-room-field" type="text" name="office_wpcm_value[<?php echo $i ?>]" id="office_<?php echo $i ?>" value="<?php echo $offices[$v->term_id] ?>" />
+	</fieldset>
+<?php
+			$i++;
+		}
+?>
+</fieldset>
+<?php
+	}
+	
+	/**
 	 * Save the custom post data
 	 */
 	function save_post( $post_id ) {
 		if ( defined( 'DOING_AUTOSAVE' ) && DOING_AUTOSAVE ) 
 			return;
-			
+		
 		if ( ! wp_verify_nonce( $_POST['_sau_contact_nonce'], 'sau-contact-fields' ) )
 			return;
 		
@@ -379,6 +406,19 @@ class SAU_Campus_Directory {
 		foreach( $_POST['wpcm_values'] as $key => $value ) {
 			update_post_meta( $post_id, $key . '_wpcm_value', esc_attr( $value ) );
 		}
+		
+		wp_set_object_terms( $post_id, NULL, 'building' );
+		
+		$offices = array();
+		foreach ( $_POST['building'] as $key => $value ) {
+			if ( empty( $value ) || ! is_numeric( $value ) || $value <= 0 )
+				continue;
+			
+			wp_set_object_terms( $post_id, intval( $value ), 'building', true );
+			$offices[intval($value)] = $_POST['office_wpcm_value'][$key];
+		}
+		
+		$tmp = update_post_meta( $post_id, 'office_wpcm_value', $offices );
 		
 		return $post_id;
 	}
@@ -458,7 +498,7 @@ class SAU_Campus_Directory {
 		if ( empty( $bldgpage ) )
 			$bldgpage = 0;
 			
-		if ( is_post_type_archive( 'contact' ) || is_tax( 'department' ) ) {
+		if ( is_post_type_archive( 'contact' ) || is_tax( 'department' ) || is_tax( 'building' ) ) {
 			remove_all_actions( 'genesis_loop' );
 			add_action( 'genesis_loop', array( $this, 'archive_loop' ) );
 		} elseif ( is_singular( 'contact' ) ) {
@@ -482,11 +522,12 @@ class SAU_Campus_Directory {
 	 * Run the custom loop for archive pages
 	 */
 	function archive_loop() {
-?>
-<h1>Archive of Some Sort</h1>
-<?php
 		$obj = get_queried_object();
 		if ( is_object( $obj ) ) {
+			if ( property_exists( $obj, 'taxonomy' ) ) {
+				$tmp = get_taxonomy( $obj->taxonomy );
+				printf( '<h1>%s</h1>', $tmp->labels->name );
+			}
 			if ( property_exists( $obj, 'name' ) )
 				printf( '<h2>%s</h2>', $obj->name );
 		}
