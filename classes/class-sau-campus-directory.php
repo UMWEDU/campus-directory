@@ -304,6 +304,7 @@ class SAU_Campus_Directory {
 				'show_option_none'  => '-- None --', 
 				'option_none_value' => 0, 
 				'class'    => 'widefat', 
+				'taxonomy' => 'building', 
 			) );
 ?>
 		<br />
