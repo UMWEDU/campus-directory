@@ -26,9 +26,9 @@ class SAU_Campus_Directory {
 		/**
 		 * Register all of our new RSS feeds
 		 */
-		add_feed( 'd/feed', array( $this, 'departments_feed' ) );
-		add_feed( 'a/feed', array( $this, 'alpha_feed' ) );
-		add_feed( 'b/feed', array( $this, 'building_feed' ) );
+		add_feed( apply_filters( 'sau-contact-feed-slug', 'd/feed', 'department' ), array( $this, 'departments_feed' ) );
+		add_feed( apply_filters( 'sau-contact-feed-slug', 'a/feed', 'alpha' ), array( $this, 'alpha_feed' ) );
+		add_feed( apply_filters( 'sau-contact-feed-slug', 'b/feed', 'building' ), array( $this, 'building_feed' ) );
 		
 		/**
 		 * Add various filters/actions to make our standard RSS feeds useful
@@ -37,6 +37,12 @@ class SAU_Campus_Directory {
 		add_filter( 'the_excerpt_rss', array( $this, 'feed_item_alpha_excerpt' ), 1 );
 		add_filter( 'the_content_feed', array( $this, 'feed_item_alpha' ), 1 );
 		add_action( 'rss2_item', array( $this, 'feed_item_enclosure' ) );
+		
+		/**
+		 * Make sure image/page URLs point to somewhere on this site, rather than
+		 * 		pointing to somewhere on the original site
+		 */
+		add_filter( 'sau-contact-check-url', array( $this, 'filter_old_url' ) );
 	}
 	
 	/**
@@ -51,7 +57,29 @@ class SAU_Campus_Directory {
 		add_action( 'saumag-contact-taxonomy-feed-head', array( $this, 'feed_query_departments' ) );
 		add_filter( 'get_wp_title_rss', array( $this, 'feed_title_departments' ) );
 		
-		load_template( plugin_dir_path( dirname( __FILE__ ) ) . 'templates/taxonomy-feed.php' );
+		$template_location = apply_filters( 'sau-contact-tax-feed-path', plugin_dir_path( dirname( __FILE__ ) ) . 'templates/taxonomy-feed.php', 'department' );
+		/**
+		 * If the filtered location is a URL, we need to translate it into a path
+		 */
+		if ( esc_url( $template_location ) )
+			$template_location = $this->url2filepath( $template_location );
+		if ( is_wp_error( $template_location ) )
+			wp_die( $template_location->get_error_message() );
+		/**
+		 * If the filtered location does not exist, we need to reset to the default
+		 */
+		if ( ! file_exists( $template_location ) )
+			$template_location = plugin_dir_path( dirname( __FILE__ ) ) . 'templates/taxonomy-feed.php';
+		/**
+		 * If it still doesn't exist, we need to jump out before trying to use it
+		 */
+		if ( ! file_exists( $template_location ) )
+			return;
+		
+		/**
+		 * Output the feed by loading the chosen template
+		 */
+		load_template( $template_location );
 	}
 	
 	/**
@@ -78,7 +106,29 @@ class SAU_Campus_Directory {
 		add_action( 'saumag-contact-taxonomy-feed-head', array( $this, 'feed_query_buildings' ) );
 		add_filter( 'get_wp_title_rss', array( $this, 'feed_title_buildings' ) );
 		
-		load_template( plugin_dir_path( dirname( __FILE__ ) ) . 'templates/taxonomy-feed.php' );
+		$template_location = apply_filters( 'sau-contact-tax-feed-path', plugin_dir_path( dirname( __FILE__ ) ) . 'templates/taxonomy-feed.php', 'building' );
+		/**
+		 * If the filtered location is a URL, we need to translate it into a path
+		 */
+		if ( esc_url( $template_location ) )
+			$template_location = $this->url2filepath( $template_location );
+		if ( is_wp_error( $template_location ) )
+			wp_die( $template_location->get_error_message() );
+		/**
+		 * If the filtered location does not exist, we need to reset to the default
+		 */
+		if ( ! file_exists( $template_location ) )
+			$template_location = plugin_dir_path( dirname( __FILE__ ) ) . 'templates/taxonomy-feed.php';
+		/**
+		 * If it still doesn't exist, we need to jump out before trying to use it
+		 */
+		if ( ! file_exists( $template_location ) )
+			return;
+		
+		/**
+		 * Output the feed by loading the chosen template
+		 */
+		load_template( $template_location );
 	}
 	
 	/**
@@ -101,15 +151,15 @@ class SAU_Campus_Directory {
 	
 	/**
 	 * Build and retrieve the title for Departments feed
-	 * @uses apply_filters() to apply the saumag-contact-departments-feed-title filter to the title
+	 * @uses apply_filters() to apply the sau-contact-departments-feed-title filter to the title
 	 */
 	function feed_title_departments( $title ) {
-		$title = apply_filters( 'saumag-contact-departments-feed-title', __( 'Departments' ) );
+		$title = apply_filters( 'sau-contact-departments-feed-title', __( 'Departments' ) );
 	}
 	
 	/**
 	 * Run the query to pull the full alphabetical list of contacts
-	 * @uses apply_filters() to apply the saumag-contact-items-per-feed filter to the number of items shown in the feed
+	 * @uses apply_filters() to apply the sau-contact-items-per-feed filter to the number of items shown in the feed
 	 */
 	function feed_query_alpha() {
 		global $wp_query;
@@ -119,7 +169,7 @@ class SAU_Campus_Directory {
 			'post_status'    => 'publish', 
 			'orderby'        => 'title', 
 			'order'          => 'asc', 
-			'posts_per_page' => apply_filters( 'saumag-contact-items-per-feed', -1, 'alpha' ), 
+			'posts_per_page' => apply_filters( 'sau-contact-items-per-feed', -1, 'alpha' ), 
 		);
 		
 		query_posts( $query_vars );
@@ -127,10 +177,10 @@ class SAU_Campus_Directory {
 	
 	/**
 	 * Filter the main title of the alphabetical feed channel
-	 * @uses apply_filters() to apply the saumag-contact-alpha-feed-title filter to the title
+	 * @uses apply_filters() to apply the sau-contact-alpha-feed-title filter to the title
 	 */
 	function feed_title_alpha( $title ) {
-		$title = apply_filters( 'saumag-contact-alpha-feed-title', __( 'Contact Directory' ) );
+		$title = apply_filters( 'sau-contact-alpha-feed-title', __( 'Contact Directory' ) );
 	}
 	
 	/**
@@ -180,6 +230,9 @@ class SAU_Campus_Directory {
 	 * Check for a featured image & include it as an enclosure in a feed
 	 */
 	function feed_item_enclosure() {
+		error_reporting( E_ALL );
+		$url = null;
+		
 		global $post;
 		if ( empty( $post ) || ! is_object( $post ) ) {
 			/*echo '<error>No post object</error>';*/
@@ -187,15 +240,29 @@ class SAU_Campus_Directory {
 		}
 		
 		if ( ! has_post_thumbnail( $post->ID ) ) {
-			/*echo '<error>No thumbnail for ' . $post->ID . '</error>';*/
-			return;
+			$wpcm_image_value = get_post_meta( $post->ID, 'image_path_wpcm_value', true );
+			
+			/**
+			 * If we still didn't find an image to use, we'll kick out of the function
+			 */
+			if ( empty( $wpcm_image_value ) )
+				return;
+			
+			$url = esc_url( $wpcm_image_value );
 		}
 		
-		$url = esc_url( wp_get_attachment_image_src( get_post_thumbnail_id( $post->ID ), 'full' ) );
+		/**
+		 * If we didn't look for and/or find a URL in the old meta style, grab the URL of the featured image
+		 */
+		if ( empty( $url ) )
+			$url = esc_url( wp_get_attachment_image_src( get_post_thumbnail_id( $post->ID ), apply_filters( 'sau-contact-enclosure-size', 'full' ) ) );
+		
 		if ( empty( $url ) ) {
 			/*echo '<error>There was an issue retrieving the URL</error>';*/
 			return;
 		}
+		
+		$url = apply_filters( 'sau-contact-check-url', $url );
 		
 		$pInfo = pathinfo( $url );
 		switch( strtolower( $pInfo['extension'] ) ) {
@@ -213,7 +280,12 @@ class SAU_Campus_Directory {
 				$mime = 'application/octet-stream';
 		}
 		
-		$size = filesize( url2filepath( $url ) );
+		$path = $this->url2filepath( $url );
+		
+		if ( is_wp_error( $path ) || ! file_exists( $path ) )
+			return;
+		
+		$size = filesize( $path );
 		
 		echo '<enclosure url="' . $url . '" length="' . $size . '" type="' . $mime . '" />' . "\n";
 	}
@@ -238,18 +310,18 @@ class SAU_Campus_Directory {
 	
 	/**
 	 * Build and retrieve the title for Buildings feed
-	 * @uses apply_filters() to apply the saumag-contact-buildings-feed-title filter to the title
+	 * @uses apply_filters() to apply the sau-contact-buildings-feed-title filter to the title
 	 */
 	function feed_title_buildings( $title ) {
-		$title = apply_filters( 'saumag-contact-buildings-feed-title', __( 'Contact Buildings' ) );
+		$title = apply_filters( 'sau-contact-buildings-feed-title', __( 'Contact Buildings' ) );
 	}
 	
 	/**
 	 * Build the array of meta fields
-	 * @uses apply_filters() to apply the sau-contacts-meta-fields filter to the array
+	 * @uses apply_filters() to apply the sau-contact-meta-fields filter to the array
 	 */
 	function get_meta_array() {
-		return $this->meta = apply_filters( 'sau-contacts-meta-fields', array(
+		return $this->meta = apply_filters( 'sau-contact-meta-fields', array(
 			array(
 				'name'        => 'first_name',
 				'std'         => '',
@@ -746,6 +818,9 @@ class SAU_Campus_Directory {
 	
 	/**
 	 * Run the custom loop for archive pages
+	 * @uses do_action() to run the sau-contact-start-archive-loop and 
+	 * 		sau-contact-done-archive-loop actions to allow output before/after 
+	 * 		the loop
 	 */
 	function archive_loop() {
 		$obj = get_queried_object();
@@ -763,20 +838,22 @@ class SAU_Campus_Directory {
 		$query_vars = array_merge( array(
 			'orderby'        => 'title', 
 			'order'          => 'asc', 
-			'posts_per_page' => -1, 
+			'posts_per_page' => apply_filters( 'sau-contact-items-per-page', -1 ), 
 		), $query_vars );
 		
 		query_posts( $query_vars );
 		
 		$i = 0;
+		do_action( 'sau-contact-start-archive-loop' );
 		if ( have_posts() ) : 
 			while ( have_posts() ) : the_post();
 				$this->do_archive_entry( $post, $i );
 				$i++;
 			endwhile;
 		else :
-			_e('<p>Sorry, no posts matched your criteria.</p>');
+			_e( apply_filters( 'sau-contact-no-posts', '<p>Sorry, no posts matched your criteria.</p>' ) );
 		endif;
+		do_action( 'sau-contact-done-archive-loop' );
 	}
 	
 	/**
@@ -799,11 +876,11 @@ class SAU_Campus_Directory {
 		$names[] = get_post_meta( get_the_ID(), 'last_name_wpcm_value', true );
 		$names = apply_filters( 'name-wpcm-value', implode( ' ', $names ), $names );
 		
-		$has_email = apply_filters( 'email-wpcm-value', get_post_meta( get_the_ID(), 'email_wpcm_value', true ) );
+		$has_email = is_email( apply_filters( 'email-wpcm-value', get_post_meta( get_the_ID(), 'email_wpcm_value', true ) ) );
 		
 		$phone = apply_filters( 'phone-wpcm-value', get_post_meta( get_the_ID(), 'office_phone_wpcm_value', true ) );
 		
-		return apply_filters( 'saumag-contact-archive-entry', '
+		return apply_filters( 'sau-contact-archive-entry', '
 	<div class="contact' . ( $i % 2 ? ' alt' : '' ) . '">
 		<span class="m-name"><a href="' . get_permalink() . '" title="' . esc_attr( $title ) . '">' . $names . '</a></span>
 		<span class="m-email">' . ( $has_email ? '<a href="mailto:' . $has_email . '">' . $has_email . '</a>' : '&nbsp;' ) . '</span>
@@ -814,10 +891,14 @@ class SAU_Campus_Directory {
 	
 	/**
 	 * Run the loop for a single directory entry
+	 * @uses do_action() to run the sau-contact-start-single-loop and 
+	 * 		sau-contact-done-single-loop actions to allow output before/after 
+	 * 		the loop
 	 */
 	function single_loop() {
 		add_filter( 'single_post_title', array( $this, 'contact_post_title' ), 1, 2 );
 		
+		do_action( 'sau-contact-start-single-loop' );
 		if ( have_posts() ) :
 			while ( have_posts() ) : the_post();
 				$this->do_single_entry();
@@ -825,6 +906,7 @@ class SAU_Campus_Directory {
 		else :
 			_e( '<p>Sorry, nothing matched your criteria.</p>' );
 		endif;
+		do_action( 'sau-contact-done-single-loop' );
 	}
 	
 	/**
@@ -902,7 +984,7 @@ class SAU_Campus_Directory {
 	' . sprintf( __( 'Last updated %s at %s' ), the_modified_date( 'F j, Y', '', '', false ), the_modified_date( 'g:i a', '', '', false ) ) . '
 </div>';
 		
-		return apply_filters( 'saumag-contact-single-entry', $rt );
+		return apply_filters( 'sau-contact-single-entry', $rt );
 	}
 	
 	/**
@@ -916,14 +998,13 @@ class SAU_Campus_Directory {
 		$office = maybe_unserialize( get_post_meta( $post->ID, 'office_wpcm_value', true ) );
 		
 		if ( empty( $bldg ) || empty( $office ) || is_wp_error( $bldg ) || is_wp_error( $office ) || ! is_array( $bldg ) || ! is_array( $office ) )
-			return '<!-- Retrieved old bldgoffice value --> ' . get_post_meta( $post->ID, 'city_wpcm_value', true );
+			return get_post_meta( $post->ID, 'city_wpcm_value', true );
 		
 		$bldg = array_values( $bldg );
 		$office = array_values( $office );
 		
 		$bldgoffice = array();
 		foreach ( $bldg as $k => $b ) {
-			print( "\n<!-- Evaluating bldg term with key of $k -->\n" );
 			$bldgoffice[$k] = $b->name;
 			if ( array_key_exists( $k, $office ) )
 				$bldgoffice[$k] .= ' ' . $office[$k]->name;
@@ -1232,4 +1313,59 @@ class SAU_Campus_Directory {
 		return sprintf( __( 'Successfully converted %d posts to contact entries' ), count( $updated ) );
 	}
 	
+	/**
+	 * Attempt to convert a URL to an absolute path
+	 */
+	function url2filepath( $url ) {
+		$uploads = wp_upload_dir();
+		
+		if ( stristr( $url, $uploads['baseurl'] ) )
+			return str_ireplace( $uploads['baseurl'], $uploads['basedir'], $url );
+		
+		$original_url = $url;
+		
+		$cd = trailingslashit( plugin_dir_path( __FILE__ ) );
+		$cu = trailingslashit( plugins_url( '', __FILE__ ) );
+		
+		$cd = explode( DIRECTORY_SEPARATOR, $cd );
+		$cu = explode( '/', $cu );
+		
+		$dp = $du = null;
+		
+		while( $dp == $du ) {
+			$dp = array_pop( $cd );
+			$du = array_pop( $cu );
+		}
+		
+		$cd[] = $dp;
+		$cu[] = $du;
+		
+		$cd = implode( DIRECTORY_SEPARATOR, $cd );
+		$cu = implode( '/', $cu );
+		
+		if ( substr( $url, 0, 1 ) === '/' )
+			$url = untrailingslashit( $cu ) . $url;
+		
+		if ( ! empty( $cd ) && stristr( $url, $cd ) )
+			return $original_url;
+		
+		if ( ! empty( $cu ) && ! empty( $cd ) && stristr( $url, $cu ) )
+			return str_ireplace( $cu, $cd, $url );
+		
+		return new WP_Error( 'bad-url', sprintf( __( 'The URL %s sent to the function was either not a usable URL or was not in the current file system.' ), $url ) );
+	}
+	
+	/**
+	 * Modify an absolute URL that points to the original site location
+	 * 		so that it points to somewhere relative to this specific site
+	 */
+	function filter_old_url( $url ) {
+		$siteurl = untrailingslashit( get_bloginfo( 'url' ) );
+		$oldurl = 'http://web.saumag.edu/directory';
+		
+		if ( stristr( $url, $oldurl ) && $siteurl !== $oldurl )
+			$url = str_ireplace( $oldurl, $siteurl, $url );
+		
+		return $url;
+	}
 }
