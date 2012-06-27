@@ -22,10 +22,231 @@ class SAU_Campus_Directory {
 		
 		if ( is_admin() )
 			wp_register_script( 'sau-campus-directory-admin', plugins_url( '/js/sau-campus-directory-admin.js', dirname( __FILE__ ) ), array( 'jquery' ), '0.2.10', true );
+		
+		/**
+		 * Register all of our new RSS feeds
+		 */
+		add_feed( 'd/feed', array( $this, 'departments_feed' ) );
+		add_feed( 'a/feed', array( $this, 'alpha_feed' ) );
+		add_feed( 'b/feed', array( $this, 'building_feed' ) );
+		
+		/**
+		 * Add various filters/actions to make our standard RSS feeds useful
+		 */
+		add_filter( 'the_title_rss', array( $this, 'the_title_rss_alpha' ), 1 );
+		add_filter( 'the_excerpt_rss', array( $this, 'feed_item_alpha_excerpt' ), 1 );
+		add_filter( 'the_content_feed', array( $this, 'feed_item_alpha' ), 1 );
+		add_action( 'rss2_item', array( $this, 'feed_item_enclosure' ) );
+	}
+	
+	/**
+	 * Build our RSS feed of all departments
+	 */
+	function departments_feed() {
+		remove_filter( 'the_title_rss', array( $this, 'the_title_rss_alpha' ), 1 );
+		remove_filter( 'the_excerpt_rss', array( $this, 'feed_item_alpha_excerpt' ), 1 );
+		remove_filter( 'the_content_feed', array( $this, 'feed_item_alpha' ), 1 );
+		remove_action( 'rss2_item', array( $this, 'feed_item_enclosure' ) );
+		
+		add_action( 'saumag-contact-taxonomy-feed-head', array( $this, 'feed_query_departments' ) );
+		add_filter( 'get_wp_title_rss', array( $this, 'feed_title_departments' ) );
+		
+		load_template( plugin_dir_path( dirname( __FILE__ ) ) . 'templates/taxonomy-feed.php' );
+	}
+	
+	/**
+	 * Build our RSS feed of all people alphabetically
+	 */
+	function alpha_feed() {
+		status_header(200);
+		
+		add_action( 'rss2_head', array( $this, 'feed_query_alpha' ) );
+		add_filter( 'get_wp_title_rss', array( $this, 'feed_title_alpha' ) );
+		
+		do_feed_rss2( false );
+	}
+	
+	/**
+	 * Build our RSS feed of all buildings
+	 */
+	function building_feed() {
+		remove_filter( 'the_title_rss', array( $this, 'the_title_rss_alpha' ), 1 );
+		remove_filter( 'the_excerpt_rss', array( $this, 'feed_item_alpha_excerpt' ), 1 );
+		remove_filter( 'the_content_feed', array( $this, 'feed_item_alpha' ), 1 );
+		remove_action( 'rss2_item', array( $this, 'feed_item_enclosure' ) );
+		
+		add_action( 'saumag-contact-taxonomy-feed-head', array( $this, 'feed_query_buildings' ) );
+		add_filter( 'get_wp_title_rss', array( $this, 'feed_title_buildings' ) );
+		
+		load_template( plugin_dir_path( dirname( __FILE__ ) ) . 'templates/taxonomy-feed.php' );
+	}
+	
+	/**
+	 * Run the query to pull a list of departments
+	 */
+	function feed_query_departments() {
+		global $sau_feed_terms;
+		
+		$sau_feed_terms = get_terms( 'department', array( 
+			'orderby'      => 'name', 
+			'hide_empty'   => 0, 
+			'hierarchical' => 1, 
+		) );
+		
+		if ( empty( $sau_feed_terms ) )
+			$sau_feed_terms = array();
+		
+		return $sau_feed_terms;
+	}
+	
+	/**
+	 * Build and retrieve the title for Departments feed
+	 * @uses apply_filters() to apply the saumag-contact-departments-feed-title filter to the title
+	 */
+	function feed_title_departments( $title ) {
+		$title = apply_filters( 'saumag-contact-departments-feed-title', __( 'Departments' ) );
+	}
+	
+	/**
+	 * Run the query to pull the full alphabetical list of contacts
+	 * @uses apply_filters() to apply the saumag-contact-items-per-feed filter to the number of items shown in the feed
+	 */
+	function feed_query_alpha() {
+		global $wp_query;
+		$query_vars = $wp_query->query_vars;
+		$query_vars = array(
+			'post_type'      => 'contact', 
+			'post_status'    => 'publish', 
+			'orderby'        => 'title', 
+			'order'          => 'asc', 
+			'posts_per_page' => apply_filters( 'saumag-contact-items-per-feed', -1, 'alpha' ), 
+		);
+		
+		query_posts( $query_vars );
+	}
+	
+	/**
+	 * Filter the main title of the alphabetical feed channel
+	 * @uses apply_filters() to apply the saumag-contact-alpha-feed-title filter to the title
+	 */
+	function feed_title_alpha( $title ) {
+		$title = apply_filters( 'saumag-contact-alpha-feed-title', __( 'Contact Directory' ) );
+	}
+	
+	/**
+	 * Filter the title of an article in the alphabetical feed
+	 */
+	function the_title_rss_alpha( $title ) {
+		global $post;
+		$title = $this->contact_post_title( $title, $post );
+		
+		/**
+		 * Make sure the post content is not empty so the "the_content_feed" action is certain to fire
+		 */
+		$post->post_content = strlen( $post->post_content ) > 0 ? $post->post_content : ' ';
+		
+		return $title;
+	}
+	
+	/**
+	 * Retrieve the full content of a contact for the alpha feed
+	 */
+	function feed_item_alpha( $content ) {
+		global $post;
+		
+		$base_url = parse_url( get_bloginfo( 'url' ) );
+		$base_url = esc_url( trailingslashit( $base_url['scheme'] . '://' . $base_url['host'] ) );
+		
+		$content = str_replace( array( "'/", '"/' ), array( "'$base_url", '"' . $base_url ), str_replace(']]>', ']]&gt;', $this->get_single_entry() ) );
+		
+		return $content;
+	}
+	
+	/**
+	 * Retrieve the excerpt of an item for the alpha feed
+	 */
+	function feed_item_alpha_excerpt( $content ) {
+		global $post;
+		
+		$base_url = parse_url( get_bloginfo( 'url' ) );
+		$base_url = esc_url( trailingslashit( $base_url['scheme'] . '://' . $base_url['host'] ) );
+		
+		$content = str_replace( array( "'/", '"/' ), array( "'$base_url", '"' . $base_url ), $this->get_archive_entry() );
+		
+		return $content;
+	}
+	
+	/**
+	 * Check for a featured image & include it as an enclosure in a feed
+	 */
+	function feed_item_enclosure() {
+		global $post;
+		if ( empty( $post ) || ! is_object( $post ) ) {
+			/*echo '<error>No post object</error>';*/
+			return;
+		}
+		
+		if ( ! has_post_thumbnail( $post->ID ) ) {
+			/*echo '<error>No thumbnail for ' . $post->ID . '</error>';*/
+			return;
+		}
+		
+		$url = esc_url( wp_get_attachment_image_src( get_post_thumbnail_id( $post->ID ), 'full' ) );
+		if ( empty( $url ) ) {
+			/*echo '<error>There was an issue retrieving the URL</error>';*/
+			return;
+		}
+		
+		$pInfo = pathinfo( $url );
+		switch( strtolower( $pInfo['extension'] ) ) {
+			case 'png' :
+				$mime = 'image/png';
+				break;
+			case 'jpg' :
+			case 'jpeg' : 
+				$mime = 'image/jpeg';
+				break;
+			case 'gif' : 
+				$mime = 'image/gif';
+				break;
+			default : 
+				$mime = 'application/octet-stream';
+		}
+		
+		$size = filesize( url2filepath( $url ) );
+		
+		echo '<enclosure url="' . $url . '" length="' . $size . '" type="' . $mime . '" />' . "\n";
+	}
+	
+	/**
+	 * Retrieve an array of items to include in the feed of the buildings taxonomy
+	 */
+	function feed_query_buildings() {
+		global $sau_feed_terms;
+		
+		$sau_feed_terms = get_terms( 'building', array( 
+			'orderby'      => 'name', 
+			'hide_empty'   => 0, 
+			'hierarchical' => 1, 
+		) );
+		
+		if ( empty( $sau_feed_terms ) )
+			$sau_feed_terms = array();
+		
+		return $sau_feed_terms;
+	}
+	
+	/**
+	 * Build and retrieve the title for Buildings feed
+	 * @uses apply_filters() to apply the saumag-contact-buildings-feed-title filter to the title
+	 */
+	function feed_title_buildings( $title ) {
+		$title = apply_filters( 'saumag-contact-buildings-feed-title', __( 'Contact Buildings' ) );
 	}
 	
 	/**
 	 * Build the array of meta fields
+	 * @uses apply_filters() to apply the sau-contacts-meta-fields filter to the array
 	 */
 	function get_meta_array() {
 		return $this->meta = apply_filters( 'sau-contacts-meta-fields', array(
@@ -201,6 +422,11 @@ class SAU_Campus_Directory {
 			'labels'       => $labels, 
 			'hierarchical' => true, 
 			'public'       => true, 
+			'rewrite'      => array( 
+				'slug'         => 'departments', 
+				'with_front'   => true, 
+				'hierarchical' => true, 
+			), 
 		);
 		register_taxonomy( 'department', array( 'contact' ), $args );
 		
@@ -339,11 +565,11 @@ class SAU_Campus_Directory {
 		$buildings = get_the_terms( $post->ID, 'building' );
 		$offices = get_post_meta( $post->ID, 'office_wpcm_value', true );
 		
-		print( "\n<!-- Building list:\n" );
+		/*print( "\n<!-- Building list:\n" );
 		var_dump( $buildings );
 		print( "\nOffice list:\n" );
 		var_dump( $offices );
-		print( "\n-->\n" );
+		print( "\n-->\n" );*/
 		
 		if ( empty( $buildings ) || is_wp_error( $buildings ) )
 			$buildings = array();
@@ -545,29 +771,45 @@ class SAU_Campus_Directory {
 		$i = 0;
 		if ( have_posts() ) : 
 			while ( have_posts() ) : the_post();
-				$title = apply_filters( 'title-wpcm-value', get_post_meta( get_the_ID(), 'title_wpcm_value', true ) );
-				
-				$names = array();
-				$names[] = get_post_meta( get_the_ID(), 'first_name_wpcm_value', true );
-				$names[] = get_post_meta( get_the_ID(), 'last_name_wpcm_value', true );
-				$names = apply_filters( 'name-wpcm-value', implode( ' ', $names ), $names );
-				
-				$has_email = apply_filters( 'email-wpcm-value', get_post_meta( get_the_ID(), 'email_wpcm_value', true ) );
-				
-				$phone = apply_filters( 'phone-wpcm-value', get_post_meta( get_the_ID(), 'office_phone_wpcm_value', true ) );
-?>
-	<div class="contact<?php echo $i % 2 ? ' alt' : ''; ?>">
-		<span class="m-name"><a href="<?php the_permalink(); ?>" title="<?php echo esc_attr( $title ) ?>"><?php echo $names ?></a></span>
-		<span class="m-email"><?php echo $has_email ? '<a href="mailto:' . $has_email . '">' . $has_email . '</a>' : '&nbsp;'; ?></span>
-		<span class="m-mobile"><span>870-235-<?php echo $phone ?></span> (O)</span>
-		<span class="title"><?php echo $title ?></span>
-	</div>
-<?php
+				$this->do_archive_entry( $post, $i );
 				$i++;
 			endwhile;
 		else :
 			_e('<p>Sorry, no posts matched your criteria.</p>');
 		endif;
+	}
+	
+	/**
+	 * Output the actual content for an entry on an archive page
+	 * @param stdClass $post the WordPress post object
+	 * @param int $i a counter for determining which class to assign
+	 */
+	function do_archive_entry( $post = null, $i = 0 ) {
+		echo $this->get_archive_entry( $post, $i );
+	}
+	
+	function get_archive_entry( $post = null, $i = 0 ) {
+		if ( empty( $post ) )
+			global $post;
+		
+		$title = apply_filters( 'title-wpcm-value', get_post_meta( $post->ID, 'title_wpcm_value', true ) );
+		
+		$names = array();
+		$names[] = get_post_meta( get_the_ID(), 'first_name_wpcm_value', true );
+		$names[] = get_post_meta( get_the_ID(), 'last_name_wpcm_value', true );
+		$names = apply_filters( 'name-wpcm-value', implode( ' ', $names ), $names );
+		
+		$has_email = apply_filters( 'email-wpcm-value', get_post_meta( get_the_ID(), 'email_wpcm_value', true ) );
+		
+		$phone = apply_filters( 'phone-wpcm-value', get_post_meta( get_the_ID(), 'office_phone_wpcm_value', true ) );
+		
+		return apply_filters( 'saumag-contact-archive-entry', '
+	<div class="contact' . ( $i % 2 ? ' alt' : '' ) . '">
+		<span class="m-name"><a href="' . get_permalink() . '" title="' . esc_attr( $title ) . '">' . $names . '</a></span>
+		<span class="m-email">' . ( $has_email ? '<a href="mailto:' . $has_email . '">' . $has_email . '</a>' : '&nbsp;' ) . '</span>
+		<span class="m-mobile"><span>870-235-' . $phone . '</span> (O)</span>
+		<span class="title">' . $title . '</span>
+	</div>' );
 	}
 	
 	/**
@@ -577,70 +819,90 @@ class SAU_Campus_Directory {
 		add_filter( 'single_post_title', array( $this, 'contact_post_title' ), 1, 2 );
 		
 		if ( have_posts() ) :
-			while ( have_posts() ) :
-				global $post;
-				
-				the_post();
-				$post_ID = get_the_ID();
-				
-				$wpcm_image_path = $this->get_contact_image_src( $post );
-				$wpcm_email = is_email( get_post_meta( $post_ID, 'email_wpcm_value', true ) );
-				$wpcm_website = esc_url( get_post_meta( $post_ID, 'website_wpcm_value', true ) );
-				$wpcm_number_mobile = get_post_meta( $post_ID, 'mobile_wpcm_value', true );
-				$wpcm_number_office = get_post_meta( $post_ID, 'office_phone_wpcm_value', true );
-				$wpcm_number_fax = get_post_meta( $post_ID, 'fax_wpcm_value', true );
-				$addressone = get_post_meta( $post_ID, "address1_wpcm_value", true );
-				$bldgoffice = $this->get_office( $post );
-?>
+			while ( have_posts() ) : the_post();
+				$this->do_single_entry();
+			endwhile;
+		else :
+			_e( '<p>Sorry, nothing matched your criteria.</p>' );
+		endif;
+	}
+	
+	/**
+	 * Actually output the content of a single entry
+	 */
+	function do_single_entry() {
+		echo $this->get_single_entry();
+	}
+	
+	function get_single_entry() {
+		global $post;
+		
+		$post_ID = $post->ID;
+		
+		$wpcm_image_path = $this->get_contact_image_src( $post );
+		$wpcm_email = is_email( get_post_meta( $post_ID, 'email_wpcm_value', true ) );
+		$wpcm_website = esc_url( get_post_meta( $post_ID, 'website_wpcm_value', true ) );
+		$wpcm_number_mobile = get_post_meta( $post_ID, 'mobile_wpcm_value', true );
+		$wpcm_number_office = get_post_meta( $post_ID, 'office_phone_wpcm_value', true );
+		$wpcm_number_fax = get_post_meta( $post_ID, 'fax_wpcm_value', true );
+		$addressone = get_post_meta( $post_ID, "address1_wpcm_value", true );
+		$bldgoffice = $this->get_office( $post );
+		
+		$rt = '
 <div class="vitals">
 	<div class="photo" style="width: 150px; float: left; margin-right: 5px;">
-    	<img style="max-width: 150px;" src="<?php echo $wpcm_image_path ?>" alt="<?php echo esc_attr( apply_filters( 'the_title', $post->post_title, $post ) ) ?>" />
+    	<img style="max-width: 150px;" src="' . $wpcm_image_path . '" alt="' . esc_attr( apply_filters( 'the_title', $post->post_title, $post ) ) . '" />
     </div>
     <div id="contact-info" style="width: 675px; float: left;">
-    	<h1 class="name fn"><?php echo $this->get_contact_name( $post ) ?></h1>
-        <span class="title"><?php echo get_post_meta( $post->ID, 'title_wpcm_value', true ); ?></span>
-        <span class="organization organization-unit"><?php the_terms( $post->ID, 'department', '', ', ', '' ) ?></span>
-<?php
-				if ( ! empty( $wpcm_email ) ) {
-?>
-        <span class="email"><a href="mailto:<?php echo $wpcm_email ?>"><?php echo $wpcm_email ?></a></span>
-<?php
-				}
-				if ( ! empty( $wpcm_website ) ) {
-?>
-		<span class="website"><a class="url" href="<?php echo $wpcm_website ?>"><?php echo get_post_meta($post->ID, "website_wpcm_value", true); ?></a></span>
-<?php
-				}
-?>
+    	<h1 class="name fn">' . $this->get_contact_name( $post ) . '</h1>
+        <span class="title">' . get_post_meta( $post->ID, 'title_wpcm_value', true ) . '</span>
+        <span class="organization organization-unit">' . get_the_term_list( $post->ID, 'department', '', ', ', '' ) . '</span>';
+		
+		if ( ! empty( $wpcm_email ) ) {
+			$rt .= '
+        <span class="email"><a href="mailto:' . $wpcm_email . '">' . $wpcm_email . '</a></span>';
+		}
+		if ( ! empty( $wpcm_website ) ) {
+			$rt .= '
+		<span class="website"><a class="url" href="' . $wpcm_website . '">' . get_post_meta($post->ID, "website_wpcm_value", true) . '</a></span>';
+		}
+		
+		$rt .= '
 		<span class="phone" style="width: 45%; float: left;">
-        	<ul class="phone-numbers tel">
-            	<?php echo empty( $wpcm_number_mobile ) ? '' : '<li><span class="number value">' . $wpcm_number_mobile . '</span> <span class="type">' . __( '(Mobile)' ) . '</span></li>'; ?>
-                <?php echo empty( $wpcm_number_office ) ? '' : '<li><span class="number value">870-235-' . $wpcm_number_office . '</span> <span class="type">' . __( '(Office)' ) . '</span></li>'; ?>
-                <?php echo empty( $wpcm_number_fax ) ? '' : '<li><span class="number value">' . $wpcm_number_fax . '</span> <span class="type">' . __( '(Fax)' ) . '</span></li>'; ?>
+        	<ul class="phone-numbers tel">';
+			
+		$rt .= empty( $wpcm_number_mobile ) ? '' : '
+				<li><span class="number value">' . $wpcm_number_mobile . '</span> <span class="type">' . __( '(Mobile)' ) . '</span></li>';
+		$rt .= empty( $wpcm_number_office ) ? '' : '
+				<li><span class="number value">870-235-' . $wpcm_number_office . '</span> <span class="type">' . __( '(Office)' ) . '</span></li>';
+		$rt .= empty( $wpcm_number_fax ) ? '' : '
+				<li><span class="number value">' . $wpcm_number_fax . '</span> <span class="type">' . __( '(Fax)' ) . '</span></li>';
+				
+		$rt .= '
             </ul>
         </span>
         <span class="address" style="width: 45%; float: left;">
-        	<h3 class="site-subtitle" style="display: none;"><?php _e( 'Address' ) ?></h3>
-            <span class="adr" style="clear:both;">
-            	<?php echo empty( $addressone ) ? '' : '<span class="post-office-box">P.O. Box ' . $addressone . '</span><br/>' ?>
-                <span class="street-address"><?php _e( 'Building/Office:' ) ?> <?php echo $bldgoffice; ?></span>
+        	<h3 class="site-subtitle" style="display: none;">' . __( 'Address' ) . '</h3>
+            <span class="adr" style="clear:both;">';
+		
+		$rt .= empty( $addressone ) ? '' : '
+			<span class="post-office-box">P.O. Box ' . $addressone . '</span><br/>';
+		$rt .= '
+                <span class="street-address">' . __( 'Building/Office:' ) . ' ' . $bldgoffice . '</span>
             </span>
         </span>
     </div>
 </div>
 <div class="extra">
 	<div class="notes">
-    	<span class="note"><?php the_content(); ?></span>
+    	<span class="note">' . apply_filters( 'the_content', get_the_content() ) . '</span>
     </div>
 </div>
 <div id="modified rev" style="clear: both; text-align: right;">
-	<?php printf( __( 'Last updated %s at %s' ), the_modified_date( 'F j, Y', '', '', false ), the_modified_date( 'g:i a', '', '', false ) ); ?>
-</div>
-<?php
-			endwhile;
-		else :
-			_e( '<p>Sorry, nothing matched your criteria.</p>' );
-		endif;
+	' . sprintf( __( 'Last updated %s at %s' ), the_modified_date( 'F j, Y', '', '', false ), the_modified_date( 'g:i a', '', '', false ) ) . '
+</div>';
+		
+		return apply_filters( 'saumag-contact-single-entry', $rt );
 	}
 	
 	/**
