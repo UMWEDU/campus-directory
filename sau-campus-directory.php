@@ -3,7 +3,7 @@
 Plugin Name: SAU Magnolia Campus Directory
 Plugin URI: http://web.saumag.edu/directory/category/college-of-business
 Description: Displays the directory information in a custom template
-Version: 1.0a
+Version: 1.0.1a
 Author: Curtiss Grymala and Shelley Keith
 Author URI: http://ten-321.com
 License: GPL2
