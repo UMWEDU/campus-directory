@@ -4,6 +4,11 @@
  */
 class SAU_Campus_Directory {
 	/**
+	 * Create a container to hold generic messages that need to be output
+	 */
+	var $messages = array();
+	
+	/**
 	 * Construct the class object
 	 */
 	function __construct() {
@@ -424,6 +429,7 @@ class SAU_Campus_Directory {
 				'std'         => '',
 				'title'       => __( 'Image Path' ),
 				'description' => '', 
+				'type'        => 'hidden', 
 			),
 		) );
 	}
@@ -1042,8 +1048,10 @@ class SAU_Campus_Directory {
 	
 	/**
 	 * Retrieve the URL for the contact image
+	 * @param stdClass $post the WordPress Post object to which the image is related
+	 * @param string $no_icon what to use if no related image is found (default|null)
 	 */
-	function get_contact_image_src( $post = null ) {
+	function get_contact_image_src( $post = null, $no_icon = 'default' ) {
 		if ( empty( $post ) )
 			global $post;
 		
@@ -1052,10 +1060,15 @@ class SAU_Campus_Directory {
 			$noicon_url = null;
 		
 		$src = '';
-		if ( has_post_thumbnail( $post->ID ) )
+		if ( has_post_thumbnail( $post->ID ) ) {
 			$src = wp_get_attachment_image_src( get_post_thumbnail_id( $post->ID ), array( 150, 0 ), false );
-		else
+			$src = $src[0];
+		} else {
 			$src = get_post_meta( $post->ID, 'image_path_wpcm_value', true );
+		}
+		
+		if ( empty( $src ) && is_null( $no_icon ) )
+			return false;
 		
 		if ( empty( $src ) )
 			$src = $noicon_url;
@@ -1192,6 +1205,19 @@ class SAU_Campus_Directory {
     </div>
 <?php
 		}
+		if ( count( $this->messages ) ) {
+?>
+	<div class="updated fade">
+<?php
+			foreach ( $this->messages as $m ) {
+?>
+		<p><?php echo $m ?></p>
+<?php
+			}
+?>
+    </div>
+<?php
+		}
 ?>
 	<h2><?php _e( 'Convert Old Directory Posts to Contact Entries' ) ?></h2>
     <p><?php _e( 'Clicking the "Convert" button below will process all existing posts on this site and convert them to "Contact" posts; reassigning the custom meta and taxonomy information appropriately.' ) ?></p>
@@ -1231,6 +1257,7 @@ class SAU_Campus_Directory {
 			return $posts;
 		
 		$updated = array();
+		$this->messages = array();
 		foreach ( $posts as $post ) {
 			$cats = get_the_terms( $post->ID, 'category' );
 			
@@ -1301,12 +1328,22 @@ class SAU_Campus_Directory {
 			wp_set_object_terms( $post->ID, $depts, 'department', false );
 			
 			if ( is_wp_error( $tmp ) ) {
-				printf( __( '<p>There was an error converting the post with an ID of %d and a title of %s</p><pre><code>%s</code></pre>' ), $post->ID, $post->post_title, $tmp->get_error_message() );
+				$this->messages[] = sprintf( __( '<p>There was an error converting the post with an ID of %d and a title of %s</p><pre><code>%s</code></pre>' ), $post->ID, $post->post_title, $tmp->get_error_message() );
 			} elseif ( empty( $tmp ) ) {
-				printf( __( '<p>There was an unknown error converting the post with an ID of %d and a title of %s</p>' ), $post->ID, $post->post_title );
+				$this->messages[] = sprintf( __( '<p>There was an unknown error converting the post with an ID of %d and a title of %s</p>' ), $post->ID, $post->post_title );
 			} else {
+				$photo_id = $this->_import_photo( $tmp, $post->post_name );
+				if ( ! empty( $photo_id ) && ! is_wp_error( $photo_id ) ) {
+					$inserted_photo = update_post_meta( $tmp, '_thumbnail_id', $photo_id );
+					$this->messages[] = sprintf( __( '<p>The image for %s was supposedly attached as the featured image properly.<br/>%s</p>' ), $post->post_name, $inserted_photo );
+				} elseif ( is_wp_error( $photo_id ) ) {
+					$this->messages[] = sprintf( __( '<p>There was an error importing the featured image for %s. Error message: %s</p>' ), $post->post_name, $photo_id->get_error_message() );
+				} else {
+					$this->messages[] = sprintf( __( '<p>The thumbnail for %s was not attached successfully for some reason.</p>' ), $post->post_name );
+				}
+				
 				$updated[] = $tmp;
-				printf( __( '<p>The post with an ID of %d and a title of %s was converted successfully.</p>' ), $post->ID, $post->post_title );
+				$this->messages[] = sprintf( __( '<p>The post with an ID of %d and a title of %s was converted successfully.</p>' ), $post->ID, $post->post_title );
 			}
 		}
 		
@@ -1367,5 +1404,98 @@ class SAU_Campus_Directory {
 			$url = str_ireplace( $oldurl, $siteurl, $url );
 		
 		return $url;
+	}
+	
+	/**
+	 * Retrieve a photo from original location and insert
+	 * 		as an attachment/featured image
+	 * @param int $postid the ID of the post to which this should be attached
+	 * @param string $post_slug the slug for the post to which this should be attached
+	 */
+	function _import_photo( $postid, $post_slug ) {
+		$post = get_post( $postid );
+		if( empty( $post ) )
+			return new WP_Error( 'empty-post', __( 'The post ID does not exist' ) );
+		
+		/**
+		 * If the post already has a featured image, we skip over importing it
+		 */
+		$imgid = get_post_thumbnail_id( $postid );
+		if ( ! empty( $imgid ) )
+			return new WP_Error( 'exists', sprintf( __( 'The post already appears to have a featured image with an ID of %d' ), $imgid ) );
+		
+		/**
+		 * Check to make sure this post has an image specified.
+		 * If it doesn't, we jump out of this function.
+		 */
+		$wpcm_image_path = $this->get_contact_image_src( $post, null );
+		if ( empty( $wpcm_image_path ) )
+			return new WP_Error( 'no-icon', __( 'The post does not appear to have an image associated' ) );
+		elseif ( is_wp_error( $wpcm_image_path ) )
+			return $wpcm_image_path;
+		
+		$wpcm_image_path = esc_url( $wpcm_image_path );
+		if ( empty( $wpcm_image_path ) )
+			return new WP_Error( 'invalid-url', __( 'The URL provided for the image was not valid.' ) );
+		
+		/**
+		 * Fix any relative links so they point to the right place
+		 */
+		if ( '/directory/' == strtolower( substr( $wpcm_image_path, 0, strlen( '/directory/' ) ) ) )
+			$wpcm_image_path = str_ireplace( '/directory/', trailingslashit( get_bloginfo( 'url' ) ), $wpcm_image_path );
+			
+		$attach_id = url_to_postid( $wpcm_image_path );
+		if ( ! empty( $attach_id ) ) {
+			return $attach_id;
+		}
+		
+		if( !class_exists( 'WP_Http' ) )
+		  include_once( ABSPATH . WPINC. '/class-http.php' );
+		
+		$photo = new WP_Http();
+		$photo = $photo->request( $wpcm_image_path );
+		if ( is_wp_error( $photo ) ) {
+			printf( __( 'There was an error retrieving the following URL: %s' ), $wpcm_image_path );
+			return $photo;
+		}
+		
+		if( $photo['response']['code'] != 200 ) {
+			/*print( 'Import failed for ' . $post_slug . '. Response code: ' . $photo['response']['code'] . "\n\n" );
+			var_dump( $photo );*/
+			return new WP_Error( 'not-retrieved', sprintf( __( 'The original image returned a status header of %s' ), $photo['response']['code'] ) );
+		}
+		
+		$filetype = wp_check_filetype( basename( $wpcm_image_path ), null );
+		
+		/**
+		 * If, for some reason, we didn't get the file extension/mime type, we should jump
+		 */
+		if ( empty( $filetype ) )
+			return new WP_Error( 'no-filetype', sprintf( __( 'The file type for the image %s could not be determined' ), $wpcm_image_path ) );
+		
+		$attachment = wp_upload_bits( $post_slug . '.' . $filetype['ext'], null, $photo['body'], date("Y-m", strtotime( $photo['headers']['last-modified'] ) ) );
+		if( ! empty( $attachment['error'] ) ) {
+			print( 'Import failed for ' . $post_slug . '. Error: ' . $attachment['error'] . "\n\n" );
+			return new WP_Error( 'import-failed', sprintf( __( 'There was an error uploading the image: %s' ), $attachment['error'] ) );
+		}
+		
+		$filename = $attachment['file'];
+		$filetype = wp_check_filetype( basename( $filename ), null );
+		$wp_upload_dir = wp_upload_dir();
+		$postinfo = array(
+			'guid'              => $wp_upload_dir['baseurl'] . _wp_relative_upload_path( $filename ),
+			'post_mime_type'	=> $filetype['type'],
+			'post_title'		=> $post->post_title . ' faculty photograph',
+			'post_content'		=> '',
+			'post_status'		=> 'inherit',
+		);
+		$attach_id = wp_insert_attachment( $postinfo, $filename, (int) $postid );
+	
+		if( !function_exists( 'wp_generate_attachment_data' ) )
+			require_once(ABSPATH . "wp-admin" . '/includes/image.php');
+		$attach_data = wp_generate_attachment_metadata( $attach_id, $filename );
+		wp_update_attachment_metadata( $attach_id,  $attach_data );
+		/*print( 'Import successful for ' . $post_slug . "\n\n" );*/
+		return $attach_id;
 	}
 }

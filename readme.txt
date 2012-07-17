@@ -3,7 +3,7 @@ Contributors: cgrymala, smkeith
 Tags: contact, employees, staff, directory, faculty
 Requires at least: 3.2
 Tested up to: 3.4
-Stable tag: 1.0a
+Stable tag: 1.0.1a
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
 
@@ -124,6 +124,10 @@ The taxonomy feeds use the following structure by default:
 * `sau-contact-items-per-page` - Filters the number of entries that should appear on a single archive page
 
 == Changelog ==
+
+= 1.0.1a =
+
+* Images are now automatically added as "featured image" wherever appropriate during directory conversion
 
 = 1.0a =
 First full version of the plugin
