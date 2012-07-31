@@ -48,6 +48,20 @@ class SAU_Campus_Directory {
 		 * 		pointing to somewhere on the original site
 		 */
 		add_filter( 'sau-contact-check-url', array( $this, 'filter_old_url' ) );
+		
+		/**
+		 * Make all queries in this site query in alpha order, rather than date order
+		 */
+		add_action( 'pre_get_posts', array( $this, 'alpha_posts' ) );
+	}
+	
+	/**
+	 * Ensures all queries pull posts in ascending alpha order.
+	 * Called by using the pre_get_posts action within the __construct() method of this class
+	 */
+	function alpha_posts( $query ) {
+		set_query_var( 'orderby', 'title' );
+		set_query_var( 'order', 'ASC' );
 	}
 	
 	/**
@@ -173,7 +187,7 @@ class SAU_Campus_Directory {
 			'post_type'      => 'contact', 
 			'post_status'    => 'publish', 
 			'orderby'        => 'title', 
-			'order'          => 'asc', 
+			'order'          => 'ASC', 
 			'posts_per_page' => apply_filters( 'sau-contact-items-per-feed', -1, 'alpha' ), 
 		);
 		
@@ -270,6 +284,9 @@ class SAU_Campus_Directory {
 		$url = apply_filters( 'sau-contact-check-url', $url );
 		
 		$pInfo = pathinfo( $url );
+		if ( ! array_key_exists( 'extension', $pInfo ) )
+			return;
+		
 		switch( strtolower( $pInfo['extension'] ) ) {
 			case 'png' :
 				$mime = 'image/png';
@@ -831,18 +848,20 @@ class SAU_Campus_Directory {
 	function archive_loop() {
 		$obj = get_queried_object();
 		if ( is_object( $obj ) ) {
-			if ( property_exists( $obj, 'taxonomy' ) ) {
+			/*if ( property_exists( $obj, 'taxonomy' ) ) {
 				$tmp = get_taxonomy( $obj->taxonomy );
 				printf( '<h1>%s</h1>', $tmp->labels->name );
-			}
+			}*/
 			if ( property_exists( $obj, 'name' ) )
-				printf( '<h2>%s</h2>', $obj->name );
+				printf( '<h1 class="%2$s">%1$s</h1>', $obj->name, apply_filters( 'sau-contact-archive-title-class', 'archive-title' ) );
 		}
 		
 		$i = 0;
+		global $post;
 		do_action( 'sau-contact-start-archive-loop' );
 		if ( have_posts() ) : 
 			while ( have_posts() ) : the_post();
+				error_log( '[SAU Debug]: ' . $post->post_name );
 				$this->do_archive_entry( $post, $i );
 				$i++;
 			endwhile;
@@ -850,8 +869,6 @@ class SAU_Campus_Directory {
 			_e( apply_filters( 'sau-contact-no-posts', '<p>Sorry, no posts matched your criteria.</p>' ) );
 		endif;
 		do_action( 'sau-contact-done-archive-loop' );
-		
-		wp_reset_query();
 	}
 	
 	/**
@@ -885,7 +902,7 @@ class SAU_Campus_Directory {
 		foreach ( $d as $t ) {
 			$depts[] = $t->name;
 		}
-		$depts = '<span class="departments">' . implode( ', ', $depts ) . '</span>';
+		$depts = '<span class="departments" style="font-style: italic; display: block">' . implode( ', ', $depts ) . '</span>';
 		
 		return apply_filters( 'sau-contact-archive-entry', '
 	<div class="contact' . ( $i % 2 ? ' alt' : '' ) . '">
@@ -1085,6 +1102,7 @@ class SAU_Campus_Directory {
 	 * Output the alphabetical list of contacts
 	 */
 	function alpha_list_loop() {
+		wp_enqueue_script( 'sau-columns', plugins_url( '/js/sau-campus-directory.columns.js', dirname( __FILE__ ) ), array( 'jquery' ), '0.1.2', true );
 ?>
 <h1><?php _e( 'Employees A to Z' ) ?></h1>
 <?php
@@ -1116,6 +1134,7 @@ class SAU_Campus_Directory {
 		}
 ?>
 </ul>
+<br class="clear" />
 <ul class="alpha-list">
 <?php
 		foreach( $posts as $l => $post_list ) {
@@ -1138,6 +1157,7 @@ class SAU_Campus_Directory {
 		}
 ?>
 </ul>
+<br class="clear" />
 <?php
 	}
 	
