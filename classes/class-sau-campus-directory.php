@@ -839,16 +839,6 @@ class SAU_Campus_Directory {
 				printf( '<h2>%s</h2>', $obj->name );
 		}
 		
-		global $wp_query;
-		$query_vars = $wp_query->query_vars;
-		$query_vars = array_merge( array(
-			'orderby'        => 'title', 
-			'order'          => 'asc', 
-			'posts_per_page' => apply_filters( 'sau-contact-items-per-page', -1 ), 
-		), $query_vars );
-		
-		query_posts( $query_vars );
-		
 		$i = 0;
 		do_action( 'sau-contact-start-archive-loop' );
 		if ( have_posts() ) : 
@@ -860,6 +850,8 @@ class SAU_Campus_Directory {
 			_e( apply_filters( 'sau-contact-no-posts', '<p>Sorry, no posts matched your criteria.</p>' ) );
 		endif;
 		do_action( 'sau-contact-done-archive-loop' );
+		
+		wp_reset_query();
 	}
 	
 	/**
@@ -875,6 +867,8 @@ class SAU_Campus_Directory {
 		if ( empty( $post ) )
 			global $post;
 		
+		setup_postdata( $post );
+		
 		$title = apply_filters( 'title-wpcm-value', get_post_meta( $post->ID, 'title_wpcm_value', true ) );
 		
 		$names = array();
@@ -886,12 +880,20 @@ class SAU_Campus_Directory {
 		
 		$phone = apply_filters( 'phone-wpcm-value', get_post_meta( get_the_ID(), 'office_phone_wpcm_value', true ) );
 		
+		$d = get_the_terms( get_the_ID(), 'department' );
+		$depts = array();
+		foreach ( $d as $t ) {
+			$depts[] = $t->name;
+		}
+		$depts = '<span class="departments">' . implode( ', ', $depts ) . '</span>';
+		
 		return apply_filters( 'sau-contact-archive-entry', '
 	<div class="contact' . ( $i % 2 ? ' alt' : '' ) . '">
 		<span class="m-name"><a href="' . get_permalink() . '" title="' . esc_attr( $title ) . '">' . $names . '</a></span>
 		<span class="m-email">' . ( $has_email ? '<a href="mailto:' . $has_email . '">' . $has_email . '</a>' : '&nbsp;' ) . '</span>
 		<span class="m-mobile"><span>870-235-' . $phone . '</span> (O)</span>
 		<span class="title">' . $title . '</span>
+		' . $depts . '
 	</div>' );
 	}
 	
