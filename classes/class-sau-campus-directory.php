@@ -1339,10 +1339,11 @@ class SAU_Campus_Directory {
 	 */
 	function building_loop() {
 ?>
+<h1 class="page-title"><?php the_title() ?></h1>
 <ul class="building-list">
 <?php
 		wp_list_categories( array( 
-			'taxonomy'    => 'sau-building', 
+			'taxonomy'    => 'building', 
 			'orderby'     => 'name', 
 			'hierachical' => 1, 
 			'title_li'    => ''
@@ -1357,6 +1358,7 @@ class SAU_Campus_Directory {
 	 */
 	function department_loop() {
 ?>
+<h1 class="page-title"><?php the_title() ?></h1>
 <ul class="department-list">
 <?php
 		wp_list_categories( array( 
