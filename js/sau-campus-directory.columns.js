@@ -1,10 +1,9 @@
 jQuery( function( $ ) {
-	$( '.alpha-links li' ).css( { 'float' : 'left', 'width' : '1.5em', 'list-style' : 'none', 'padding' : 0, 'margin' : 0 } );
 	var total = 0;
 	$( '.alpha-list > li .letter-list' ).each( function() { total++; total += $( this ).children().length; } );
 	/*var total = $( '.alpha-list > li' ).length;*/
 	var perpage = Math.ceil( total / 3 );
-	$( '.alpha-list' ).addClass( 'one-third first' ).parent().append( $( '<ul class="alpha-list one-third second"></ul><ul class="alpha-list one-third third"></ul>' ) );
+	$( '.alpha-list' ).addClass( 'one-third first' ).after( $( '<ul class="alpha-list one-third second"></ul><ul class="alpha-list one-third third"></ul>' ) );
 	
 	console.log( 'Total: ' + total );
 	console.log( 'Per page: ' + perpage );

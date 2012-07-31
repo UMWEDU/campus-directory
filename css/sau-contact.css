@@ -16,6 +16,39 @@ span.departments {
 	display: block;
 }
 
+.alpha-links li {
+	float: left;
+	width: 3.846153846153846%;
+	min-width: 1.5em;
+	list-style: none;
+	padding: 0;
+	margin: 0;
+	text-align: left;
+}
+
+.alpha-list, 
+.alpha-list li {
+	list-style: none;
+}
+
+.alpha-list {
+	column-count: 3;
+	column-rule: 1px dotted #e2e2e2;
+	column-gap: 1em;
+	
+	-webkit-column-count: 3;
+	-webkit-column-rule: 1px dotted #e2e2e2;
+	-webkit-column-gap: 1em;
+	
+	-moz-column-count: 3;
+	-moz-column-rule: 1px dotted #e2e2e2;
+	-moz-column-gap: 1em;
+	
+	-o-column-count: 3;
+	-o-column-rule: 1px dotted #e2e2e2;
+	-o-column-gap: 1em;
+}
+
 /* @=Single Entry Styles
 ================================== */
 .vitals .photo {
