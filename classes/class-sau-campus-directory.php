@@ -7,6 +7,8 @@ class SAU_Campus_Directory {
 	 * Create a container to hold generic messages that need to be output
 	 */
 	var $messages = array();
+	var $social = array();
+	var $meta = array();
 	
 	/**
 	 * Construct the class object
@@ -48,6 +50,47 @@ class SAU_Campus_Directory {
 		 * 		pointing to somewhere on the original site
 		 */
 		add_filter( 'sau-contact-check-url', array( $this, 'filter_old_url' ) );
+		
+		/**
+		 * Make all queries in this site query in alpha order, rather than date order
+		 */
+		add_action( 'pre_get_posts', array( $this, 'alpha_posts' ) );
+		
+		wp_register_style( 'sau-contact', plugins_url( '/css/sau-contact.css', dirname( __FILE__ ) ), array(), '0.1.3', 'all' );
+		
+		/**
+		 * Unfortunately, WordPress doesn't support adding conditional comments 
+		 * 		to scripts (only styles), so we have to kind of hack this together
+		 * 		for now. The correct way of doing this is commented out below, so 
+		 * 		it can be used in the future, hopefully, if WP implements it
+		 */
+		global $is_IE;
+		if ( $is_IE )
+			wp_register_script( 'sau-columns', plugins_url( '/js/sau-campus-directory.columns.js', dirname( __FILE__ ) ), array( 'jquery' ), '0.1.4', true );
+		/*global $wp_scripts;
+		$wp_scripts->add_data( 'sau-columns', 'conditional', 'lt ie10' );*/
+		
+		/**
+		 * Filter the Twitter handle to return a URL
+		 */
+		add_filter( 'sau-contact-social-field-twitter', array( $this, 'twitter_url' ) );
+		
+		/**
+		 * Prepare to register the feed widget
+		 */
+		add_action( 'widgets_init', array( $this, 'register_widgets' ) );
+	}
+	
+	/**
+	 * Ensures all queries pull posts in ascending alpha order.
+	 * Called by using the pre_get_posts action within the __construct() method of this class
+	 */
+	function alpha_posts( $query ) {
+		if ( is_admin() )
+			return $query;
+		
+		set_query_var( 'orderby', 'title' );
+		set_query_var( 'order', 'ASC' );
 	}
 	
 	/**
@@ -173,7 +216,7 @@ class SAU_Campus_Directory {
 			'post_type'      => 'contact', 
 			'post_status'    => 'publish', 
 			'orderby'        => 'title', 
-			'order'          => 'asc', 
+			'order'          => 'ASC', 
 			'posts_per_page' => apply_filters( 'sau-contact-items-per-feed', -1, 'alpha' ), 
 		);
 		
@@ -270,6 +313,9 @@ class SAU_Campus_Directory {
 		$url = apply_filters( 'sau-contact-check-url', $url );
 		
 		$pInfo = pathinfo( $url );
+		if ( ! array_key_exists( 'extension', $pInfo ) )
+			return;
+		
 		switch( strtolower( $pInfo['extension'] ) ) {
 			case 'png' :
 				$mime = 'image/png';
@@ -435,6 +481,49 @@ class SAU_Campus_Directory {
 	}
 	
 	/**
+	 * Build the array of social media fields
+	 */
+	function get_social_array() {
+		return $this->social = apply_filters( 'sau-contact-social-fields', array(
+			array(
+				'name'        => 'facebook', 
+				'title'       => __( 'Facebook' ), 
+				'description' => __( 'Enter the URL (address) to your Facebook profile or page' ), 
+				'type'        => 'url', 
+			), 
+			array(
+				'name'        => 'twitter', 
+				'title'       => __( 'Twitter' ), 
+				'description' => __( 'Enter your Twitter handle (username)' ), 
+			), 
+			array(
+				'name'        => 'linkedin', 
+				'title'       => __( 'LinkedIn' ), 
+				'description' => __( 'Enter the URL (address) to your LinkedIn public profile or page' ), 
+				'type'        => 'url', 
+			), 
+			array(
+				'name'        => 'youtube', 
+				'title'       => __( 'YouTube' ), 
+				'description' => __( 'Enter the URL (address) to your YouTube profile or channel' ), 
+				'type'        => 'url', 
+			), 
+			array(
+				'name'        => 'vimeo', 
+				'title'       => __( 'Vimeo' ), 
+				'description' => __( 'Enter the URL (address) to your Vimeo profile' ), 
+				'type'        => 'url', 
+			), 
+			array(
+				'name'        => 'blog', 
+				'title'       => __( 'Blog Feed' ), 
+				'description' => __( 'Enter the URL (address) to your blog or website RSS feed' ), 
+				'type'        => 'url', 
+			), 
+		) );
+	}
+	
+	/**
 	 * Register the appropriate post type and taxonomies
 	 * @uses register_post_type()
 	 * @uses register_taxonomy()
@@ -576,6 +665,8 @@ class SAU_Campus_Directory {
 	function add_meta_boxes() {
 		add_meta_box( 'sau-contact-fields', __( 'Add New Contact' ), array( $this, 'do_meta_boxes' ), 'contact', 'normal', 'high' );
 		remove_meta_box( 'buildingdiv', 'contact', 'side' );
+		
+		add_meta_box( 'sau-social-fields', __( 'Social Media' ), array( $this, 'do_social_meta_box' ), 'contact', 'normal', 'default' );
 	}
 	
 	/**
@@ -596,9 +687,34 @@ class SAU_Campus_Directory {
 	}
 	
 	/**
+	 * Output the meta box for social media fields
+	 */
+	function do_social_meta_box( $post = null ) {
+		if ( is_numeric( $post ) )
+			$post = get_post( $post );
+		
+		if ( empty( $post ) )
+			global $post;
+		
+		/**
+		 * Not necessary, since we're noncing the other meta box
+		 */
+		/*wp_nonce_field( 'sau-social-fields', '_sau_social_contact_nonce' );*/
+		
+		do_action( 'sau-before-social-fields', $post );
+		
+		$this->social = $this->get_social_array();
+		foreach ( $this->social as $field ) {
+			$this->do_meta_field( $field, $post );
+		}
+		
+		do_action( 'sau-after-social-fields', $post );
+	}
+	
+	/**
 	 * Output a form field for the meta information
 	 */
-	function do_meta_field( $field, $post = null ) {
+	function do_meta_field( $field, $post = null, $suffix = '_wpcm_value' ) {
 		$field = array_merge( array( 
 			'type'        => 'text', 
 			'name'        => null, 
@@ -610,7 +726,7 @@ class SAU_Campus_Directory {
 		if ( empty( $field['name'] ) )
 			return;
 		
-		$val = get_post_meta( $post->ID, $field['name'] . '_wpcm_value', true );
+		$val = get_post_meta( $post->ID, $field['name'] . $suffix, true );
 		switch( $field['type'] ) {
 			case 'text' : 
 			default : 
@@ -619,11 +735,11 @@ class SAU_Campus_Directory {
 <?php
 				if ( ! empty( $field['title'] ) && 'hidden' !== $field['type'] ) {
 ?>
-	<label for="<?php echo esc_attr( $field['name'] . '_wpcm_value' ) ?>"><?php echo $field['title'] ?></label> 
+	<label for="<?php echo esc_attr( $field['name'] . $suffix ) ?>"><?php echo $field['title'] ?></label> 
 <?php
 				}
 ?>
-	<input type="<?php echo $field['type'] ?>" name="wpcm_values[<?php echo $field['name'] ?>]" id="<?php echo $field['name'] . '_wpcm_value' ?>" value="<?php echo esc_attr( $val ) ?>" class="widefat" />
+	<input type="<?php echo $field['type'] ?>" name="wpcm_values[<?php echo $field['name'] ?>]" id="<?php echo $field['name'] . $suffix ?>" value="<?php echo esc_attr( $val ) ?>" class="widefat" />
 <?php
 				if ( ! empty( $field['description'] ) ) {
 ?>
@@ -640,6 +756,8 @@ class SAU_Campus_Directory {
 	 * Output the fieldset for building/office meta data
 	 */
 	function build_office_fieldset( $post = null ) {
+		wp_enqueue_style( 'sau-contact' );
+		
 		$buildings = get_the_terms( $post->ID, 'building' );
 		$offices = get_post_meta( $post->ID, 'office_wpcm_value', true );
 		
@@ -663,7 +781,7 @@ class SAU_Campus_Directory {
 		$i = 0;
 		foreach( $buildings as $k => $v ) {
 ?>
-	<fieldset class="office-block" style="border: 1px solid #999; padding: 1em; margin: 1em;">
+	<fieldset class="office-block">
     	<legend><?php printf( __( 'Office location %d' ), ( $i + 1 ) ) ?></legend>
 		<label for="building_<?php echo $i ?>"><?php _e( 'Building name:' ) ?></label> 
 <?php 
@@ -707,8 +825,40 @@ class SAU_Campus_Directory {
 		if ( ! current_user_can( 'edit_post', $post_id ) )
 			return;
 		
-		foreach( $_POST['wpcm_values'] as $key => $value ) {
-			update_post_meta( $post_id, $key . '_wpcm_value', esc_attr( $value ) );
+		$this->get_meta_array();
+		foreach ( $this->meta as $field ) {
+			if ( ! array_key_exists( $field['name'], $_POST['wpcm_values'] ) ) {
+				delete_post_meta( $post_id, $field['name'] . '_wpcm_value' );
+				continue;
+			}
+			
+			switch ( $field['type'] ) {
+				case 'url' : 
+					$_POST['wpcm_values'][$field['name']] = esc_url( $_POST['wpcm_values'][$field['name']] );
+					break;
+				default :
+					$_POST['wpcm_values'][$field['name']] = esc_attr( $_POST['wpcm_values'][$field['name']] );
+			}
+			
+			update_post_meta( $post_id, $field['name'] . '_wpcm_value', $_POST['wpcm_values'][$field['name']] );
+		}
+		
+		$this->get_social_array();
+		foreach ( $this->social as $field ) {
+			if ( ! array_key_exists( $field['name'], $_POST['wpcm_values'] ) ) {
+				delete_post_meta( $post_id, $field['name'] . '_wpcm_value' );
+				continue;
+			}
+			
+			switch ( $field['type'] ) {
+				case 'url' : 
+					$_POST['wpcm_values'][$field['name']] = esc_url( $_POST['wpcm_values'][$field['name']] );
+					break;
+				default :
+					$_POST['wpcm_values'][$field['name']] = esc_attr( $_POST['wpcm_values'][$field['name']] );
+			}
+			
+			update_post_meta( $post_id, $field['name'] . '_wpcm_value', $_POST['wpcm_values'][$field['name']] );
 		}
 		
 		wp_set_object_terms( $post_id, NULL, 'building' );
@@ -829,30 +979,24 @@ class SAU_Campus_Directory {
 	 * 		the loop
 	 */
 	function archive_loop() {
+		wp_enqueue_style( 'sau-contact' );
+		
 		$obj = get_queried_object();
 		if ( is_object( $obj ) ) {
-			if ( property_exists( $obj, 'taxonomy' ) ) {
+			/*if ( property_exists( $obj, 'taxonomy' ) ) {
 				$tmp = get_taxonomy( $obj->taxonomy );
 				printf( '<h1>%s</h1>', $tmp->labels->name );
-			}
+			}*/
 			if ( property_exists( $obj, 'name' ) )
-				printf( '<h2>%s</h2>', $obj->name );
+				printf( '<h1 class="%2$s">%1$s</h1>', $obj->name, apply_filters( 'sau-contact-archive-title-class', 'archive-title' ) );
 		}
 		
-		global $wp_query;
-		$query_vars = $wp_query->query_vars;
-		$query_vars = array_merge( array(
-			'orderby'        => 'title', 
-			'order'          => 'asc', 
-			'posts_per_page' => apply_filters( 'sau-contact-items-per-page', -1 ), 
-		), $query_vars );
-		
-		query_posts( $query_vars );
-		
 		$i = 0;
+		global $post;
 		do_action( 'sau-contact-start-archive-loop' );
 		if ( have_posts() ) : 
 			while ( have_posts() ) : the_post();
+				/*error_log( '[SAU Debug]: ' . $post->post_name );*/
 				$this->do_archive_entry( $post, $i );
 				$i++;
 			endwhile;
@@ -875,6 +1019,8 @@ class SAU_Campus_Directory {
 		if ( empty( $post ) )
 			global $post;
 		
+		setup_postdata( $post );
+		
 		$title = apply_filters( 'title-wpcm-value', get_post_meta( $post->ID, 'title_wpcm_value', true ) );
 		
 		$names = array();
@@ -886,12 +1032,19 @@ class SAU_Campus_Directory {
 		
 		$phone = apply_filters( 'phone-wpcm-value', get_post_meta( get_the_ID(), 'office_phone_wpcm_value', true ) );
 		
+		$d = get_the_terms( get_the_ID(), 'department' );
+		$depts = array();
+		foreach ( $d as $t ) {
+			$depts[] = $t->name;
+		}
+		$depts = '<span class="departments">' . implode( ', ', $depts ) . '</span>';
+		
 		return apply_filters( 'sau-contact-archive-entry', '
 	<div class="contact' . ( $i % 2 ? ' alt' : '' ) . '">
 		<span class="m-name"><a href="' . get_permalink() . '" title="' . esc_attr( $title ) . '">' . $names . '</a></span>
-		<span class="m-email">' . ( $has_email ? '<a href="mailto:' . $has_email . '">' . $has_email . '</a>' : '&nbsp;' ) . '</span>
-		<span class="m-mobile"><span>870-235-' . $phone . '</span> (O)</span>
+		' . ( empty( $phone ) ? '<span class="m-email m-phone">' . ( $has_email ? '<a href="mailto:' . $has_email . '">' . $has_email . '</a>' : '&nbsp;' ) . '</span>' : '<span class="m-mobile"><span>' . $this->format_phone( $phone ) . '</span> (O)</span>' ) . '
 		<span class="title">' . $title . '</span>
+		' . $depts . '
 	</div>' );
 	}
 	
@@ -902,6 +1055,8 @@ class SAU_Campus_Directory {
 	 * 		the loop
 	 */
 	function single_loop() {
+		wp_enqueue_style( 'sau-contact' );
+		
 		add_filter( 'single_post_title', array( $this, 'contact_post_title' ), 1, 2 );
 		
 		do_action( 'sau-contact-start-single-loop' );
@@ -933,15 +1088,15 @@ class SAU_Campus_Directory {
 		$wpcm_number_mobile = get_post_meta( $post_ID, 'mobile_wpcm_value', true );
 		$wpcm_number_office = get_post_meta( $post_ID, 'office_phone_wpcm_value', true );
 		$wpcm_number_fax = get_post_meta( $post_ID, 'fax_wpcm_value', true );
-		$addressone = get_post_meta( $post_ID, "address1_wpcm_value", true );
+		$addressone = get_post_meta( $post_ID, 'address1_wpcm_value', true );
 		$bldgoffice = $this->get_office( $post );
 		
 		$rt = '
 <div class="vitals">
-	<div class="photo" style="width: 150px; float: left; margin-right: 5px;">
-    	<img style="max-width: 150px;" src="' . $wpcm_image_path . '" alt="' . esc_attr( apply_filters( 'the_title', $post->post_title, $post ) ) . '" />
+	<div class="photo">
+    	<img src="' . $wpcm_image_path . '" alt="' . esc_attr( apply_filters( 'the_title', $post->post_title, $post ) ) . '" />
     </div>
-    <div id="contact-info" style="width: 675px; float: left;">
+    <div id="contact-info">
     	<h1 class="name fn">' . $this->get_contact_name( $post ) . '</h1>
         <span class="title">' . get_post_meta( $post->ID, 'title_wpcm_value', true ) . '</span>
         <span class="organization organization-unit">' . get_the_term_list( $post->ID, 'department', '', ', ', '' ) . '</span>';
@@ -956,22 +1111,22 @@ class SAU_Campus_Directory {
 		}
 		
 		$rt .= '
-		<span class="phone" style="width: 45%; float: left;">
+		<span class="phone">
         	<ul class="phone-numbers tel">';
 			
 		$rt .= empty( $wpcm_number_mobile ) ? '' : '
-				<li><span class="number value">' . $wpcm_number_mobile . '</span> <span class="type">' . __( '(Mobile)' ) . '</span></li>';
+				<li><span class="number value">' . $this->format_phone( $wpcm_number_mobile ) . '</span> <span class="type">' . __( '(Mobile)' ) . '</span></li>';
 		$rt .= empty( $wpcm_number_office ) ? '' : '
-				<li><span class="number value">870-235-' . $wpcm_number_office . '</span> <span class="type">' . __( '(Office)' ) . '</span></li>';
+				<li><span class="number value">' . $this->format_phone( $wpcm_number_office ) . '</span> <span class="type">' . __( '(Office)' ) . '</span></li>';
 		$rt .= empty( $wpcm_number_fax ) ? '' : '
-				<li><span class="number value">' . $wpcm_number_fax . '</span> <span class="type">' . __( '(Fax)' ) . '</span></li>';
+				<li><span class="number value">' . $this->format_phone( $wpcm_number_fax ) . '</span> <span class="type">' . __( '(Fax)' ) . '</span></li>';
 				
 		$rt .= '
             </ul>
         </span>
-        <span class="address" style="width: 45%; float: left;">
-        	<h3 class="site-subtitle" style="display: none;">' . __( 'Address' ) . '</h3>
-            <span class="adr" style="clear:both;">';
+        <span class="address">
+        	<h3 class="site-subtitle">' . __( 'Address' ) . '</h3>
+            <span class="adr">';
 		
 		$rt .= empty( $addressone ) ? '' : '
 			<span class="post-office-box">P.O. Box ' . $addressone . '</span><br/>';
@@ -986,11 +1141,47 @@ class SAU_Campus_Directory {
     	<span class="note">' . apply_filters( 'the_content', get_the_content() ) . '</span>
     </div>
 </div>
-<div id="modified rev" style="clear: both; text-align: right;">
+<div class="modified rev">
 	' . sprintf( __( 'Last updated %s at %s' ), the_modified_date( 'F j, Y', '', '', false ), the_modified_date( 'g:i a', '', '', false ) ) . '
 </div>';
 		
 		return apply_filters( 'sau-contact-single-entry', $rt );
+	}
+	
+	/**
+	 * Format a phone number appropriately
+	 */
+	function format_phone( $number ) {
+		if ( empty( $number ) )
+			return false;
+		
+		$num = preg_replace( '/[^0-9]/', '', $number );
+		switch ( strlen( $num ) ) {
+			case 4 :
+				$num = '235' . $num;
+			case 7 :
+				$num = '870' . $num;
+			case 10 : 
+				break;
+				
+			default : 
+				/* Return the original input if it doesn't look the way we'd expect */
+				return $number;
+		}
+		
+		$num = $num[0] . $num[1] . $num[2] . '-' . $num[3] . $num[4] . $num[5] . '-' . $num[6] . $num[7] . $num[8] . $num[9];
+		
+		return apply_filters( 'sau-contact-phone-format', $num );
+	}
+	
+	/**
+	 * Format a Twitter handle as a URL to Twitter
+	 */
+	function twitter_url( $handle ) {
+		if ( 'http' == substr( $handle, 0, strlen( 'http' ) ) )
+			return $handle;
+		
+		return esc_url( 'https://twitter.com/' . $handle );
 	}
 	
 	/**
@@ -1006,14 +1197,14 @@ class SAU_Campus_Directory {
 		if ( empty( $bldg ) || empty( $office ) || is_wp_error( $bldg ) || is_wp_error( $office ) || ! is_array( $bldg ) || ! is_array( $office ) )
 			return get_post_meta( $post->ID, 'city_wpcm_value', true );
 		
-		$bldg = array_values( $bldg );
-		$office = array_values( $office );
+		/*$bldg = array_values( $bldg );
+		$office = array_values( $office );*/
 		
 		$bldgoffice = array();
 		foreach ( $bldg as $k => $b ) {
 			$bldgoffice[$k] = $b->name;
 			if ( array_key_exists( $k, $office ) )
-				$bldgoffice[$k] .= ' ' . $office[$k]->name;
+				$bldgoffice[$k] .= ' ' . $office[$k];
 		}
 		
 		return implode( ', ', $bldgoffice );
@@ -1083,6 +1274,8 @@ class SAU_Campus_Directory {
 	 * Output the alphabetical list of contacts
 	 */
 	function alpha_list_loop() {
+		wp_enqueue_script( 'sau-columns' );
+		wp_enqueue_style( 'sau-contact' );
 ?>
 <h1><?php _e( 'Employees A to Z' ) ?></h1>
 <?php
@@ -1114,6 +1307,7 @@ class SAU_Campus_Directory {
 		}
 ?>
 </ul>
+<br class="clear" />
 <ul class="alpha-list">
 <?php
 		foreach( $posts as $l => $post_list ) {
@@ -1136,6 +1330,7 @@ class SAU_Campus_Directory {
 		}
 ?>
 </ul>
+<br class="clear" />
 <?php
 	}
 	
@@ -1497,5 +1692,23 @@ class SAU_Campus_Directory {
 		wp_update_attachment_metadata( $attach_id,  $attach_data );
 		/*print( 'Import successful for ' . $post_slug . "\n\n" );*/
 		return $attach_id;
+	}
+	
+	/**
+	 * Register any widgets that we use with this plugin
+	 */
+	function register_widgets() {
+		do_action( 'sau-contact-before-widget-registration' );
+		if ( ! class_exists( 'Contact_Feed_Widget' ) )
+			require_once( plugin_dir_path( __FILE__ ) . 'class-contact-feed-widget.php' );
+			
+		register_widget( 'Contact_Feed_Widget' );
+		
+		if ( ! class_exists( 'Contact_Social_Icons_Widget' ) )
+			require_once( plugin_dir_path( __FILE__ ) . 'class-contact-social-icons-widget.php' );
+		
+		register_widget( 'Contact_Social_Icons_Widget' );
+		
+		do_action( 'sau-contact-after-widget-registration' );
 	}
 }

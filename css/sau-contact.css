@@ -1,0 +1,86 @@
+@charset "utf-8";
+/* All CSS definitions for the SAU Magnolia Contact Directory plugin go here */
+
+/* @=Admin Styles
+================================== */
+.office-block {
+	border: 1px solid #999; 
+	padding: 1em; 
+	margin: 1em;
+}
+
+/* @=Archive Styles
+================================== */
+span.departments {
+	font-style: italic; 
+	display: block;
+}
+
+.alpha-links li {
+	float: left;
+	width: 3.846153846153846%;
+	min-width: 1.5em;
+	list-style: none;
+	padding: 0;
+	margin: 0;
+	text-align: left;
+}
+
+.alpha-list, 
+.alpha-list li {
+	list-style: none;
+}
+
+.alpha-list {
+	column-count: 3;
+	column-rule: 1px dotted #e2e2e2;
+	column-gap: 1em;
+	
+	-webkit-column-count: 3;
+	-webkit-column-rule: 1px dotted #e2e2e2;
+	-webkit-column-gap: 1em;
+	
+	-moz-column-count: 3;
+	-moz-column-rule: 1px dotted #e2e2e2;
+	-moz-column-gap: 1em;
+	
+	-o-column-count: 3;
+	-o-column-rule: 1px dotted #e2e2e2;
+	-o-column-gap: 1em;
+}
+
+/* @=Single Entry Styles
+================================== */
+.vitals .photo {
+	width: 150px; 
+	float: left; 
+	margin-right: 5px;
+}
+
+.vitals .photo img {
+	max-width: 150px;
+}
+
+.vitals #contact-info {
+	width: 675px; 
+	float: left;
+}
+
+#contact-info .phone, 
+#contact-info .address {
+	width: 45%; 
+	float: left;
+}
+
+.address h3.site-subtitle {
+	display: none;
+}
+
+.address .adr {
+	clear:both;
+}
+
+.modified.rev {
+	clear: both; 
+	text-align: right;
+}
