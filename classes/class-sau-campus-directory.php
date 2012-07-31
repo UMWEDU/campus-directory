@@ -53,6 +53,8 @@ class SAU_Campus_Directory {
 		 * Make all queries in this site query in alpha order, rather than date order
 		 */
 		add_action( 'pre_get_posts', array( $this, 'alpha_posts' ) );
+		
+		wp_register_style( 'sau-contact', plugins_url( '/css/sau-contact.css', dirname( __FILE__ ) ), array(), '0.1', 'all' );
 	}
 	
 	/**
@@ -657,6 +659,8 @@ class SAU_Campus_Directory {
 	 * Output the fieldset for building/office meta data
 	 */
 	function build_office_fieldset( $post = null ) {
+		wp_enqueue_style( 'sau-contact' );
+		
 		$buildings = get_the_terms( $post->ID, 'building' );
 		$offices = get_post_meta( $post->ID, 'office_wpcm_value', true );
 		
@@ -680,7 +684,7 @@ class SAU_Campus_Directory {
 		$i = 0;
 		foreach( $buildings as $k => $v ) {
 ?>
-	<fieldset class="office-block" style="border: 1px solid #999; padding: 1em; margin: 1em;">
+	<fieldset class="office-block">
     	<legend><?php printf( __( 'Office location %d' ), ( $i + 1 ) ) ?></legend>
 		<label for="building_<?php echo $i ?>"><?php _e( 'Building name:' ) ?></label> 
 <?php 
@@ -846,6 +850,8 @@ class SAU_Campus_Directory {
 	 * 		the loop
 	 */
 	function archive_loop() {
+		wp_enqueue_style( 'sau-contact' );
+		
 		$obj = get_queried_object();
 		if ( is_object( $obj ) ) {
 			/*if ( property_exists( $obj, 'taxonomy' ) ) {
@@ -861,7 +867,7 @@ class SAU_Campus_Directory {
 		do_action( 'sau-contact-start-archive-loop' );
 		if ( have_posts() ) : 
 			while ( have_posts() ) : the_post();
-				error_log( '[SAU Debug]: ' . $post->post_name );
+				/*error_log( '[SAU Debug]: ' . $post->post_name );*/
 				$this->do_archive_entry( $post, $i );
 				$i++;
 			endwhile;
@@ -902,7 +908,7 @@ class SAU_Campus_Directory {
 		foreach ( $d as $t ) {
 			$depts[] = $t->name;
 		}
-		$depts = '<span class="departments" style="font-style: italic; display: block">' . implode( ', ', $depts ) . '</span>';
+		$depts = '<span class="departments">' . implode( ', ', $depts ) . '</span>';
 		
 		return apply_filters( 'sau-contact-archive-entry', '
 	<div class="contact' . ( $i % 2 ? ' alt' : '' ) . '">
@@ -921,6 +927,8 @@ class SAU_Campus_Directory {
 	 * 		the loop
 	 */
 	function single_loop() {
+		wp_enqueue_style( 'sau-contact' );
+		
 		add_filter( 'single_post_title', array( $this, 'contact_post_title' ), 1, 2 );
 		
 		do_action( 'sau-contact-start-single-loop' );
@@ -957,10 +965,10 @@ class SAU_Campus_Directory {
 		
 		$rt = '
 <div class="vitals">
-	<div class="photo" style="width: 150px; float: left; margin-right: 5px;">
-    	<img style="max-width: 150px;" src="' . $wpcm_image_path . '" alt="' . esc_attr( apply_filters( 'the_title', $post->post_title, $post ) ) . '" />
+	<div class="photo">
+    	<img src="' . $wpcm_image_path . '" alt="' . esc_attr( apply_filters( 'the_title', $post->post_title, $post ) ) . '" />
     </div>
-    <div id="contact-info" style="width: 675px; float: left;">
+    <div id="contact-info">
     	<h1 class="name fn">' . $this->get_contact_name( $post ) . '</h1>
         <span class="title">' . get_post_meta( $post->ID, 'title_wpcm_value', true ) . '</span>
         <span class="organization organization-unit">' . get_the_term_list( $post->ID, 'department', '', ', ', '' ) . '</span>';
@@ -975,7 +983,7 @@ class SAU_Campus_Directory {
 		}
 		
 		$rt .= '
-		<span class="phone" style="width: 45%; float: left;">
+		<span class="phone">
         	<ul class="phone-numbers tel">';
 			
 		$rt .= empty( $wpcm_number_mobile ) ? '' : '
@@ -988,9 +996,9 @@ class SAU_Campus_Directory {
 		$rt .= '
             </ul>
         </span>
-        <span class="address" style="width: 45%; float: left;">
-        	<h3 class="site-subtitle" style="display: none;">' . __( 'Address' ) . '</h3>
-            <span class="adr" style="clear:both;">';
+        <span class="address">
+        	<h3 class="site-subtitle">' . __( 'Address' ) . '</h3>
+            <span class="adr">';
 		
 		$rt .= empty( $addressone ) ? '' : '
 			<span class="post-office-box">P.O. Box ' . $addressone . '</span><br/>';
@@ -1005,7 +1013,7 @@ class SAU_Campus_Directory {
     	<span class="note">' . apply_filters( 'the_content', get_the_content() ) . '</span>
     </div>
 </div>
-<div id="modified rev" style="clear: both; text-align: right;">
+<div class="modified rev">
 	' . sprintf( __( 'Last updated %s at %s' ), the_modified_date( 'F j, Y', '', '', false ), the_modified_date( 'g:i a', '', '', false ) ) . '
 </div>';
 		
