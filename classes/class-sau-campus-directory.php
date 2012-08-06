@@ -89,8 +89,8 @@ class SAU_Campus_Directory {
 		if ( is_admin() )
 			return $query;
 		
-		set_query_var( 'orderby', 'title' );
-		set_query_var( 'order', 'ASC' );
+		$query->set( 'orderby', 'title' );
+		$query->set( 'order', 'ASC' );
 	}
 	
 	/**
@@ -989,6 +989,9 @@ class SAU_Campus_Directory {
 			}*/
 			if ( property_exists( $obj, 'name' ) )
 				printf( '<h1 class="%2$s">%1$s</h1>', $obj->name, apply_filters( 'sau-contact-archive-title-class', 'archive-title' ) );
+			if ( is_tax() ) {
+				$this->tax_query( $obj );
+			}
 		}
 		
 		$i = 0;
@@ -1004,6 +1007,58 @@ class SAU_Campus_Directory {
 			_e( apply_filters( 'sau-contact-no-posts', '<p>Sorry, no posts matched your criteria.</p>' ) );
 		endif;
 		do_action( 'sau-contact-done-archive-loop' );
+	}
+	
+	/**
+	 * Run multiple queries to retrieve all posts within child terms
+	 */
+	function tax_query( $obj ) {
+		if ( ! is_object( $obj ) ) {
+			print( "\n<!-- For some reason, the obj var is not an object -->\n" );
+			return false;
+		}
+		
+		$tax = $obj->taxonomy;
+		$term = intval( $obj->term_id );
+		
+		$children = get_terms( $tax, array( 'child_of' => $term ) );
+		
+		/*print( "\n<pre><code>\n" );
+		var_dump( $children );
+		print( "\n</code></pre>\n" );*/
+		
+		if ( empty( $children ) || is_wp_error( $children ) || ! is_array( $children ) ) {
+			return false;
+		}
+		
+		$posts = array();
+		foreach ( $children as $child ) {
+			print( "\n<!-- Adding {$child->name} to the query -->\n" );
+			$tmp = get_posts( array( 'post_type' => 'contact', 'tax_query' => array( 'taxonomy' => $tax, 'field' => 'slug', 'terms' => $child->slug ) ) );
+			/*print( "\n<pre><code>\n" );
+			print( "\n{$child->name}\n" );
+			var_dump( $tmp );
+			print( "\n</code></pre>\n" );*/
+			
+			if ( ! empty( $tmp ) )
+				$posts = array_merge( $posts, $tmp );
+		}
+		$tmp = $posts;
+		$posts = array();
+		foreach ( $tmp as $p ) {
+			$posts[$p->ID] = $p->ID;
+		}
+		
+		print( "\n<pre><code>\n" );
+		var_dump( $term );
+		var_dump( $tax );
+		var_dump( $posts );
+		/*var_dump( $tmp );*/
+		print( "\n</code></pre>\n" );
+		wp_die( 'Done' );
+		
+		query_posts( array( 'post__in' => $posts ) );
+		return;
 	}
 	
 	/**
@@ -1481,8 +1536,10 @@ class SAU_Campus_Directory {
 				$cat->taxonomy = 'department';
 				/*$deleted[] = wp_delete_term( $cat->term_id, 'category' );*/
 				$tmp = get_term_by( 'slug', $cat->slug, 'department' );
-				if ( empty( $tmp ) )
+				if ( empty( $tmp ) ) {
+					unset( $cat->term_id );
 					$tmp = wp_insert_term( $cat->name, 'department', (array) $cat );
+				}
 				
 				if ( is_wp_error( $tmp ) )
 					/*wp_die( $tmp->get_error_message() );*/
@@ -1712,5 +1769,12 @@ class SAU_Campus_Directory {
 		register_widget( 'Contact_Social_Icons_Widget' );
 		
 		do_action( 'sau-contact-after-widget-registration' );
+	}
+	
+	/**
+	 * Sort an array of post objects by post title
+	 */
+	function sort_by_title( $a, $b ) {
+		return strcmp( $a->post_title, $b->post_title );
 	}
 }
