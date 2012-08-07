@@ -125,6 +125,12 @@ The taxonomy feeds use the following structure by default:
 
 == Changelog ==
 
+= 1.0.4a =
+
+* Diagnosed bug that stopped all contacts within child terms from showing on top-level term archive page. The solution is to edit each child "Department" and re-save it, which will get WordPress to recognize the correct parent term when loading the archive page.
+* Added link to building archive for employees with building taxonomy set
+* Fixed bug that stopped all entries from appearing on taxonomy archive pages.
+
 = 1.0.1a =
 
 * Images are now automatically added as "featured image" wherever appropriate during directory conversion

@@ -91,6 +91,10 @@ class SAU_Campus_Directory {
 		
 		$query->set( 'orderby', 'title' );
 		$query->set( 'order', 'ASC' );
+		if ( is_tax( 'department' ) || is_tax( 'building' ) || is_post_type_archive( 'contact' ) ) {
+			$query->set( 'posts_per_page', apply_filters( 'sau-contact-items-per-feed', -1 ) );
+			$query->set( 'numberposts', apply_filters( 'sau-contact-items-per-feed', -1 ) );
+		}
 	}
 	
 	/**
@@ -982,6 +986,7 @@ class SAU_Campus_Directory {
 		wp_enqueue_style( 'sau-contact' );
 		
 		$obj = get_queried_object();
+		
 		if ( is_object( $obj ) ) {
 			/*if ( property_exists( $obj, 'taxonomy' ) ) {
 				$tmp = get_taxonomy( $obj->taxonomy );
@@ -989,9 +994,8 @@ class SAU_Campus_Directory {
 			}*/
 			if ( property_exists( $obj, 'name' ) )
 				printf( '<h1 class="%2$s">%1$s</h1>', $obj->name, apply_filters( 'sau-contact-archive-title-class', 'archive-title' ) );
-			if ( is_tax() ) {
-				$this->tax_query( $obj );
-			}
+			/*if ( is_tax() ) {
+				$this->tax_query( $obj );*/
 		}
 		
 		$i = 0;
@@ -1153,32 +1157,32 @@ class SAU_Campus_Directory {
     </div>
     <div id="contact-info">
     	<h1 class="name fn">' . $this->get_contact_name( $post ) . '</h1>
-        <span class="title">' . get_post_meta( $post->ID, 'title_wpcm_value', true ) . '</span>
-        <span class="organization organization-unit">' . get_the_term_list( $post->ID, 'department', '', ', ', '' ) . '</span>';
+        <h2 class="title">' . get_post_meta( $post->ID, 'title_wpcm_value', true ) . '</h2>
+        <p class="organization organization-unit">' . get_the_term_list( $post->ID, 'department', '', ', ', '' ) . '</p>';
 		
 		if ( ! empty( $wpcm_email ) ) {
 			$rt .= '
-        <span class="email"><a href="mailto:' . $wpcm_email . '">' . $wpcm_email . '</a></span>';
+        <p class="email"><a href="mailto:' . $wpcm_email . '">' . $wpcm_email . '</a></p>';
 		}
 		if ( ! empty( $wpcm_website ) ) {
 			$rt .= '
-		<span class="website"><a class="url" href="' . $wpcm_website . '">' . get_post_meta($post->ID, "website_wpcm_value", true) . '</a></span>';
+		<p class="website"><a class="url" href="' . $wpcm_website . '">' . get_post_meta($post->ID, "website_wpcm_value", true) . '</a></p>';
 		}
 		
 		$rt .= '
-		<span class="phone">
+		<div class="phone">
         	<ul class="phone-numbers tel">';
 			
 		$rt .= empty( $wpcm_number_mobile ) ? '' : '
-				<li><span class="number value">' . $this->format_phone( $wpcm_number_mobile ) . '</span> <span class="type">' . __( '(Mobile)' ) . '</span></li>';
+				<li class="number value">' . $this->format_phone( $wpcm_number_mobile ) . '</span> <span class="type">' . __( '(Mobile)' ) . '</li>';
 		$rt .= empty( $wpcm_number_office ) ? '' : '
-				<li><span class="number value">' . $this->format_phone( $wpcm_number_office ) . '</span> <span class="type">' . __( '(Office)' ) . '</span></li>';
+				<li class="number value" style="clear: both;">' . $this->format_phone( $wpcm_number_office ) . '</span> <span class="type">' . __( '(Office)' ) . '</li>';
 		$rt .= empty( $wpcm_number_fax ) ? '' : '
-				<li><span class="number value">' . $this->format_phone( $wpcm_number_fax ) . '</span> <span class="type">' . __( '(Fax)' ) . '</span></li>';
+				<li class="number value" style="clear: both;">' . $this->format_phone( $wpcm_number_fax ) . '</span> <span class="type">' . __( '(Fax)' ) . '</li>';
 				
 		$rt .= '
             </ul>
-        </span>
+        </div>
         <span class="address">
         	<h3 class="site-subtitle">' . __( 'Address' ) . '</h3>
             <span class="adr">';
@@ -1257,7 +1261,7 @@ class SAU_Campus_Directory {
 		
 		$bldgoffice = array();
 		foreach ( $bldg as $k => $b ) {
-			$bldgoffice[$k] = $b->name;
+			$bldgoffice[$k] = '<a href="' . get_term_link( $b->slug, $b->taxonomy ) . '" title="' . esc_attr( sprintf( __( 'View all contact entries in %s' ), $b->name ) ) . '">' . $b->name . '</a>';
 			if ( array_key_exists( $k, $office ) )
 				$bldgoffice[$k] .= ' ' . $office[$k];
 		}
@@ -1503,8 +1507,9 @@ class SAU_Campus_Directory {
 			
 		$posts = get_posts( $args );
 		
-		if ( empty( $posts ) )
+		if ( empty( $posts ) ) {
 			return new WP_Error( 'sau-no-posts', __( 'The information was not converted, because no posts could be retrieved' ) );
+		}
 		if ( is_wp_error( $posts ) )
 			return $posts;
 		
@@ -1580,6 +1585,7 @@ class SAU_Campus_Directory {
 				'post_type' => 'contact', 
 			) );
 			wp_set_object_terms( $post->ID, $depts, 'department', false );
+			wp_set_object_terms( $post->ID, NULL, 'category', false );
 			
 			if ( is_wp_error( $tmp ) ) {
 				$this->messages[] = sprintf( __( '<p>There was an error converting the post with an ID of %d and a title of %s</p><pre><code>%s</code></pre>' ), $post->ID, $post->post_title, $tmp->get_error_message() );
