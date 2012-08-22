@@ -994,6 +994,9 @@ class SAU_Campus_Directory {
 			}*/
 			if ( property_exists( $obj, 'name' ) )
 				printf( '<h1 class="%2$s">%1$s</h1>', $obj->name, apply_filters( 'sau-contact-archive-title-class', 'archive-title' ) );
+			
+			if ( property_exists( $obj, 'description' ) && ! empty( $obj->description ) )
+				printf( '<div class="term-description">%s</div>', wpautop( $obj->description ) );
 			/*if ( is_tax() ) {
 				$this->tax_query( $obj );*/
 		}
