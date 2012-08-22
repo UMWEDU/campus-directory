@@ -79,6 +79,12 @@ class SAU_Campus_Directory {
 		 * Prepare to register the feed widget
 		 */
 		add_action( 'widgets_init', array( $this, 'register_widgets' ) );
+		
+		/**
+		 * Add social media icons and modification date after single entries
+		 */
+		add_filter( 'sau-contact-single-entry', array( $this, 'insert_social_media' ), 9 );
+		add_filter( 'sau-contact-single-entry', array( $this, 'insert_modification_date' ) );
 	}
 	
 	/**
@@ -1202,12 +1208,41 @@ class SAU_Campus_Directory {
 	<div class="notes">
     	<span class="note">' . apply_filters( 'the_content', get_the_content() ) . '</span>
     </div>
-</div>
+</div>';
+		
+		return apply_filters( 'sau-contact-single-entry', $rt );
+	}
+	
+	/**
+	 * Add social media widget below single entry
+	 */
+	function insert_social_media( $content ) {
+		if ( false !== ( $tmp = is_active_widget( false, false, 'sau_social_icons_widget', true ) ) )
+			return $content;
+		
+		ob_start();
+		the_widget( 'Contact_Social_Icons_Widget', apply_filters( 'sau-social-icons-default-instance', array() ), apply_filters( 'sau-social-icons-default-args', array( 
+			'before_widget' => '<div class="social-icons-widget">', 
+			'after_widget'  => '</div>', 
+			'before_title'  => '<h2 class="widgettitle">', 
+			'after_title'   => '</h2>',
+		) ) );
+		$content .= ob_get_clean();
+		
+		return $content;
+	}
+	
+	/**
+	 * Insert the modification date at the end of a single entry
+	 * Must be run inside of the loop, otherwise it will fail
+	 */
+	function insert_modification_date( $content ) {
+		$content .= '
 <div class="modified rev">
 	' . sprintf( __( 'Last updated %s at %s' ), the_modified_date( 'F j, Y', '', '', false ), the_modified_date( 'g:i a', '', '', false ) ) . '
 </div>';
 		
-		return apply_filters( 'sau-contact-single-entry', $rt );
+		return $content;
 	}
 	
 	/**

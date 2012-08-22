@@ -3,7 +3,7 @@ Contributors: cgrymala, smkeith
 Tags: contact, employees, staff, directory, faculty
 Requires at least: 3.2
 Tested up to: 3.4.1
-Stable tag: 1.0.4a
+Stable tag: 1.0.5a
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
 
@@ -122,8 +122,15 @@ The taxonomy feeds use the following structure by default:
 * `sau-default-contact-image` - Filters the location of the default image to be used when a contact doesn't have their own photo set
 * `sau-contact-enclosure-size` - Filters the thumbnail/image size that should be included in the feed (defaults to `full`)
 * `sau-contact-items-per-page` - Filters the number of entries that should appear on a single archive page
+* `sau-social-icons-default-instance` - Filters an empty array that will be sent as the default "instance" arguments for the social icons widget when used at the end of single contact entry
+* `sau-social-icons-default-args` - Filters the array of "args" for the social icons widget when used at the end of a single contact entry
 
 == Changelog ==
+
+= 1.0.5a =
+
+* Added ability to include social media icons at end of single contact entry instead of sidebar (will automatically appear if the widget is not active in any sidebars, will not appear if it is)
+* Added term descriptions to taxonomy archives
 
 = 1.0.4a =
 
