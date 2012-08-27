@@ -14,6 +14,8 @@ class SAU_Campus_Directory {
 	 * Construct the class object
 	 */
 	function __construct() {
+		add_action( 'wp_loaded', array( $this, 'check_for_old_redirect' ) );
+		
 		remove_action( 'admin_notices', 'sau_campus_directory_no_genesis' );
 		$this->get_meta_array();
 		
@@ -85,6 +87,28 @@ class SAU_Campus_Directory {
 		 */
 		add_filter( 'sau-contact-single-entry', array( $this, 'insert_social_media' ), 9 );
 		add_filter( 'sau-contact-single-entry', array( $this, 'insert_modification_date' ) );
+	}
+	
+	/**
+	 * Check for old URL structure and redirect if necessary
+	 */
+	function check_for_old_redirect() {
+		if ( ! preg_match( '#/(\d+)(/*)$#', $_SERVER['REQUEST_URI'], $matches ) )
+			return;
+		
+		$post_id = intval( $matches[1] );
+		
+		if ( empty( $post_id ) )
+			return;
+		
+		$pl = get_permalink( $post_id );
+		/*print( '<pre><code>' );
+		var_dump( $pl );
+		print( '</code></pre>' );
+		wp_die( 'Match found' );*/
+		
+		wp_safe_redirect( $pl, 301 );
+		exit();
 	}
 	
 	/**
