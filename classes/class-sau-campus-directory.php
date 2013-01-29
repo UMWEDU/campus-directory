@@ -162,6 +162,7 @@ class SAU_Campus_Directory {
 		 * Output the feed by loading the chosen template
 		 */
 		load_template( $template_location );
+		exit();
 	}
 	
 	/**
@@ -172,6 +173,7 @@ class SAU_Campus_Directory {
 		
 		add_action( 'rss2_head', array( $this, 'feed_query_alpha' ) );
 		add_filter( 'get_wp_title_rss', array( $this, 'feed_title_alpha' ) );
+		add_filter( 'the_author', array( $this, 'feed_item_creator_alpha' ) );
 		
 		do_feed_rss2( false );
 	}
@@ -266,6 +268,17 @@ class SAU_Campus_Directory {
 	}
 	
 	/**
+	 * Replace the author's name with the employee's job title
+	 */
+	function feed_item_creator_alpha( $authorname ) {
+		global $post;
+		if ( ! is_object( $post ) )
+			return $authorname;
+		
+		return '<![CDATA[' . get_post_meta( $post->ID, 'title_wpcm_value', true ) . ']]>';
+	}
+	
+	/**
 	 * Filter the title of an article in the alphabetical feed
 	 */
 	function the_title_rss_alpha( $title ) {
@@ -312,7 +325,6 @@ class SAU_Campus_Directory {
 	 * Check for a featured image & include it as an enclosure in a feed
 	 */
 	function feed_item_enclosure() {
-		error_reporting( E_ALL );
 		$url = null;
 		
 		global $post;
@@ -1133,7 +1145,7 @@ class SAU_Campus_Directory {
 		
 		return apply_filters( 'sau-contact-archive-entry', '
 	<div class="contact' . ( $i % 2 ? ' alt' : '' ) . '">
-		<span class="m-name"><a href="' . get_permalink() . '" title="' . esc_attr( $title ) . '">' . $names . '</a></span>
+		<span class="m-name"><a href="' . get_permalink() . '" title="' . esc_attr( $names ) . '">' . $names . '</a></span>
 		' . ( empty( $phone ) ? '<span class="m-email m-phone">' . ( $has_email ? '<a href="mailto:' . $has_email . '">' . $has_email . '</a>' : '&nbsp;' ) . '</span>' : '<span class="m-mobile"><span>' . $this->format_phone( $phone ) . '</span> (O)</span>' ) . '
 		<span class="title">' . $title . '</span>
 		' . $depts . '
